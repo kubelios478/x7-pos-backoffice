@@ -3,12 +3,38 @@ import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import './App.css'
+import SaasDashboard from './components/SaaSDashboard/SaaSDashboard'
 
 function App() {
   const [count, setCount] = useState(0)
+  const [showSaaS, setShowSaaS] = useState(true)
+
+  if (showSaaS) {
+    return (
+      <>
+        <div className="fixed top-2 right-2 z-50">
+          <button
+            onClick={() => setShowSaaS(false)}
+            className="bg-[#222222] hover:bg-[#d51f2c] text-white text-[10px] font-bold uppercase py-1 px-2.5 rounded shadow-lg transition-all"
+          >
+            Ver Plantilla Original
+          </button>
+        </div>
+        <SaasDashboard />
+      </>
+    )
+  }
 
   return (
     <>
+      <div className="fixed top-2 right-2 z-50">
+        <button
+          onClick={() => setShowSaaS(true)}
+          className="bg-[#d51f2c] hover:bg-[#222222] text-white text-[10px] font-bold uppercase py-1 px-2.5 rounded shadow-lg transition-all"
+        >
+          Ver SaaS Dashboard
+        </button>
+      </div>
       <section id="center">
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
@@ -16,7 +42,7 @@ function App() {
           <img src={viteLogo} className="vite" alt="Vite logo" />
         </div>
         <div>
-          <h1>Get started</h1>
+          <h1>Get started hola</h1>
           <p>
             Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
           </p>
