@@ -399,7 +399,7 @@ export const RestaurantDashboard: React.FC = () => {
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
-              <span className="material-symbols-outlined text-[20px] text-[#d51f2c]">dashboard</span>
+              <span className={`material-symbols-outlined text-[20px] ${activeCategory === 'saas' ? 'text-[#d51f2c]' : ''}`}>dashboard</span>
               <span className="font-sans text-[13px]">Platform SaaS</span>
             </div>
 
@@ -443,16 +443,12 @@ export const RestaurantDashboard: React.FC = () => {
             { id: 'growth', label: 'Growth', icon: 'trending_up' },
           ].map((cat) => {
             if (cat.id === 'inventory') {
-              const isCatActive = activeCategory === 'inventory';
+              const isCatActive = ['categories', 'products', 'modifiers', 'variants', 'food-costing'].includes(activeTab);
               return (
                 <div key={cat.id} className="w-full text-left">
                   <div
                     onClick={() => {
-                      setActiveCategory('inventory');
                       setIsInventoryExpanded(!isInventoryExpanded);
-                      if (!['categories', 'products', 'modifiers', 'variants', 'food-costing'].includes(activeTab)) {
-                        setActiveTab('categories');
-                      }
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-colors ${
                       isCatActive
@@ -569,66 +565,34 @@ export const RestaurantDashboard: React.FC = () => {
       {/* Top Navigation Bar */}
       <header className="fixed top-0 right-0 left-64 h-16 bg-[#f1ece4] border-b border-[#e8e2d8] z-40 flex justify-between items-center px-6">
         {isSaaSTab ? (
-          /* Cabecera del SaaS Dashboard */
-          <>
-            <div className="flex items-center gap-4 flex-1">
-              <div className="relative w-full max-w-md">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#666666] text-lg">
-                  search
+          /* Cabecera del SaaS Dashboard (Lado Izquierdo) */
+          <div className="flex items-center gap-4 flex-1">
+            <div className="relative w-full max-w-md">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#666666] text-lg">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full bg-white/50 border border-[#e8e2d8] rounded py-1.5 pl-10 pr-4 text-body-sm focus:ring-0 focus:border-[#222222] transition-all"
+                placeholder="Search merchants, users, or companies..."
+              />
+              {isSearching && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#666666] animate-pulse">
+                  ...
                 </span>
-                <input
-                  type="text"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="w-full bg-white/50 border border-[#e8e2d8] rounded py-1.5 pl-10 pr-4 text-body-sm focus:ring-0 focus:border-[#222222] transition-all"
-                  placeholder="Search merchants, users, or companies..."
-                />
-                {isSearching && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#666666] animate-pulse">
-                    ...
-                  </span>
-                )}
-              </div>
-              {debouncedSearchQuery && (
-                <div className="bg-[#222222] text-white px-2 py-1 text-[10px] font-bold uppercase flex items-center gap-1.5 rounded animate-fade-in shadow-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
-                  Query: "{debouncedSearchQuery}"
-                </div>
               )}
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setRefreshTrigger((prev) => prev + 1)}
-                className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors"
-                title="Refrescar Datos"
-              >
-                <span className="material-symbols-outlined">refresh</span>
-              </button>
-              <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
-                <span className="material-symbols-outlined">help</span>
-              </button>
-              <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
-                <span className="material-symbols-outlined">settings</span>
-              </button>
-              <div className="h-8 w-px bg-[#e8e2d8] mx-2"></div>
-              <div className="flex items-center gap-3 pl-2">
-                <div className="text-right">
-                  <p className="text-body-sm font-bold text-[#222222] leading-none">SaaS Admin</p>
-                  <p className="text-[11px] text-secondary">Enterprise Controller</p>
-                </div>
-                <div className="w-9 h-9 rounded-full border border-[#e8e2d8] overflow-hidden bg-zinc-200 shadow-sm">
-                  <img
-                    alt="User Profile"
-                    className="w-full h-full object-cover"
-                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&q=80"
-                  />
-                </div>
+            {debouncedSearchQuery && (
+              <div className="bg-[#222222] text-white px-2 py-1 text-[10px] font-bold uppercase flex items-center gap-1.5 rounded animate-fade-in shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
+                Query: "{debouncedSearchQuery}"
               </div>
-            </div>
-          </>
+            )}
+          </div>
         ) : (
-          /* Cabecera del Restaurante */
+          /* Cabecera del Restaurante (Lado Izquierdo) */
           <>
             {activeTab === 'categories' ? (
               <div className="flex items-center gap-6">
@@ -665,73 +629,84 @@ export const RestaurantDashboard: React.FC = () => {
                 )}
               </div>
             )}
+          </>
+        )}
 
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3 text-secondary">
-                {/* Botón de Notificaciones (AC 5.1) */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors relative"
-                  >
-                    <span className="material-symbols-outlined">notifications</span>
-                    {notifications.length > 0 && (
-                      <span className="absolute top-2 right-2 w-2 h-2 bg-[#d51f2c] rounded-full border border-[#f1ece4]"></span>
-                    )}
-                  </button>
+        {/* Lado Derecho de la Cabecera Genérica (Común para SaaS y Restaurante) */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 text-secondary">
+            {/* Botón de Notificaciones (AC 5.1) */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors relative"
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                {notifications.length > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-[#d51f2c] rounded-full border border-[#f1ece4]"></span>
+                )}
+              </button>
 
-                  {/* Dropdown de Notificaciones */}
-                  {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white border border-[#e8e2d8] shadow-2xl z-50 text-left rounded-sm">
-                      <div className="p-3 bg-[#222222] text-white text-xs font-bold uppercase rounded-t-sm flex justify-between items-center">
-                        <span>Notifications Queue</span>
-                        <span className="bg-[#d51f2c] px-1.5 py-0.5 text-[9px] rounded">
-                          {notifications.length} Unread
-                        </span>
-                      </div>
-                      <div className="divide-y divide-[#e8e2d8] max-h-60 overflow-y-auto custom-scrollbar">
-                        {notifications.length === 0 ? (
-                          <p className="p-4 text-xs text-secondary italic text-center">No notifications found.</p>
-                        ) : (
-                          notifications.map((n) => (
-                            <div key={n.id} className="p-3 hover:bg-[#f9f7f4] transition-colors">
-                              <p className="text-xs font-bold text-[#222222]">{n.title}</p>
-                              <p className="text-[11px] text-[#666666] mt-0.5">{n.message}</p>
-                              <span className="text-[9px] text-secondary mt-1 block text-right">{n.time}</span>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
-                  <span className="material-symbols-outlined">help</span>
-                </button>
-                <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
-                  <span className="material-symbols-outlined">settings</span>
-                </button>
-                <div className="h-8 w-px bg-[#e8e2d8] mx-2"></div>
-              </div>
-
-              {/* Información dinámica de usuario (AC 1.1) */}
-              {profile && (
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-body-sm font-semibold text-[#222222] leading-none">{profile.name}</p>
-                    <p className="text-[11px] text-secondary">{profile.role}</p>
+              {/* Dropdown de Notificaciones */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 bg-white border border-[#e8e2d8] shadow-2xl z-50 text-left rounded-sm">
+                  <div className="p-3 bg-[#222222] text-white text-xs font-bold uppercase rounded-t-sm flex justify-between items-center">
+                    <span>Notifications Queue</span>
+                    <span className="bg-[#d51f2c] px-1.5 py-0.5 text-[9px] rounded">
+                      {notifications.length} Unread
+                    </span>
                   </div>
-                  <img
-                    alt="Profile Portrait"
-                    className="w-9 h-9 rounded-full object-cover border border-[#e8e2d8] shadow-sm"
-                    src={profile.portraitUrl}
-                  />
+                  <div className="divide-y divide-[#e8e2d8] max-h-60 overflow-y-auto custom-scrollbar">
+                    {notifications.length === 0 ? (
+                      <p className="p-4 text-xs text-secondary italic text-center">No notifications found.</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <div key={n.id} className="p-3 hover:bg-[#f9f7f4] transition-colors">
+                          <p className="text-xs font-bold text-[#222222]">{n.title}</p>
+                          <p className="text-[11px] text-[#666666] mt-0.5">{n.message}</p>
+                          <span className="text-[9px] text-secondary mt-1 block text-right">{n.time}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-          </>
-        )}
+
+            {isSaaSTab && (
+              <button
+                onClick={() => setRefreshTrigger((prev) => prev + 1)}
+                className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors"
+                title="Refrescar Datos"
+              >
+                <span className="material-symbols-outlined">refresh</span>
+              </button>
+            )}
+
+            <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
+              <span className="material-symbols-outlined">help</span>
+            </button>
+            <button className="p-2 text-[#222222] hover:bg-[#e8e2d8] transition-colors">
+              <span className="material-symbols-outlined">settings</span>
+            </button>
+            <div className="h-8 w-px bg-[#e8e2d8] mx-2"></div>
+          </div>
+
+          {/* Información dinámica de usuario (AC 1.1) */}
+          {profile && (
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-body-sm font-semibold text-[#222222] leading-none">{profile.name}</p>
+                <p className="text-[11px] text-secondary">{profile.role}</p>
+              </div>
+              <img
+                alt="Profile Portrait"
+                className="w-9 h-9 rounded-full object-cover border border-[#e8e2d8] shadow-sm"
+                src={profile.portraitUrl}
+              />
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Main Content Area */}
