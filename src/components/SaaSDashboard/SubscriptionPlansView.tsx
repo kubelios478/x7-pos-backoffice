@@ -44,6 +44,36 @@ export const SubscriptionPlansView: React.FC = () => {
     setStatusFilter('All Status');
   };
 
+  if (!loading && plans.length === 0) {
+    return (
+      <div
+        data-testid="empty-state"
+        className="flex flex-col items-center justify-center py-24 gap-6"
+      >
+        <span
+          className="material-symbols-outlined text-[#5f5e5e]"
+          style={{ fontSize: '72px' }}
+        >
+          inventory_2
+        </span>
+        <div className="text-center">
+          <h3 className="text-xl font-bold text-[#1d1c17]">No Plans Configured</h3>
+          <p className="text-sm text-[#5f5e5e] mt-2 max-w-md">
+            No subscription plans have been provisioned yet. Click &apos;Add Plan&apos; to
+            initialize your platform&apos;s monetization model.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-[#930015] transition-colors"
+        >
+          <span className="material-symbols-outlined text-lg">add</span>
+          ADD PLAN
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Filter Strip Card */}

@@ -237,3 +237,30 @@ describe('SubscriptionPlansView — filter strip', () => {
     expect(options).toContain('annual');
   });
 });
+
+describe('SubscriptionPlansView — empty data state', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('shows empty state panel when service returns no plans', async () => {
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue([]);
+    renderView();
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "No subscription plans have been provisioned yet. Click 'Add Plan' to initialize your platform's monetization model.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('hides the table when service returns no plans', async () => {
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue([]);
+    renderView();
+    await waitFor(() => {
+      expect(screen.queryByText('SUBSCRIPTION MASTER PLANS')).not.toBeInTheDocument();
+    });
+  });
+});
