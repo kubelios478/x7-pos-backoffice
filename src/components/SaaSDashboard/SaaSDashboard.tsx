@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SaasOverviewContent } from './SaasOverviewContent';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
+import { SubscriptionPlansView } from './SubscriptionPlansView';
 
 export const SaaSDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -66,18 +67,20 @@ export const SaaSDashboard: React.FC = () => {
 
   // Renderizar vistas según la pestaña activa (AC 1.1 y 4.3)
   const renderContent = () => {
+    if (activeTab === 'subscription') {
+      return <SubscriptionPlansView />;
+    }
+
     if (activeTab !== 'dashboard') {
       return (
         <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded">
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">
-            {activeTab === 'subscription' && 'loyalty'}
             {activeTab === 'companies' && 'corporate_fare'}
             {activeTab === 'merchants' && 'store'}
             {activeTab === 'users' && 'group'}
             {activeTab === 'reports' && 'description'}
           </span>
           <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">
-            {activeTab === 'subscription' && 'Subscription System'}
             {activeTab === 'companies' && 'Companies Registry'}
             {activeTab === 'merchants' && 'Merchants Registry'}
             {activeTab === 'users' && 'Platform Users'}
@@ -85,8 +88,8 @@ export const SaaSDashboard: React.FC = () => {
           </h2>
           <p className="text-body-md text-[#666666] mt-2 max-w-md mx-auto">
             Esta sección virtual simula la ruta SPA para{' '}
-            <strong className="text-[#d51f2c]">/{activeTab}</strong>. Toda la navegación se realiza
-            reactivamente sin recargas de página físicas.
+            <strong className="text-[#d51f2c]">/{activeTab}</strong>. Toda la navegación se
+            realiza reactivamente sin recargas de página físicas.
           </p>
           <button
             onClick={() => setActiveTab('dashboard')}
@@ -133,7 +136,7 @@ export const SaaSDashboard: React.FC = () => {
             <div className="mt-1 ml-4 border-l border-white/20 flex flex-col space-y-1">
               {[
                 { id: 'dashboard', label: 'Dashboard' },
-                { id: 'subscription', label: 'Subscription System' },
+                { id: 'subscription', label: 'Subscription Plans' },
                 { id: 'companies', label: 'Companies' },
                 { id: 'merchants', label: 'Merchants' },
                 { id: 'users', label: 'Users' },
