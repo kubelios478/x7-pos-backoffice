@@ -116,6 +116,35 @@ export const SubscriptionPlansView: React.FC = () => {
     setEditFormError('');
   };
 
+  const handleChangeStatusConfirm = async () => {
+    if (!changingStatusPlan) return;
+    const newStatus: 'active' | 'inactive' =
+      changingStatusPlan.status === 'active' ? 'inactive' : 'active';
+    setChangeStatusSubmitting(true);
+    try {
+      const updated = await saasService.updateSubscriptionPlan(changingStatusPlan.id, {
+        name: changingStatusPlan.name,
+        description: changingStatusPlan.description,
+        price: changingStatusPlan.price,
+        billingCycle: changingStatusPlan.billingCycle,
+        status: newStatus,
+      } as UpdateSubscriptionPlanDto);
+      setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setChangingStatusPlan(null);
+      setToast({ message: 'Plan status updated successfully', type: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update plan status';
+      setChangingStatusPlan(null);
+      if (msg === 'SESSION_EXPIRED') {
+        setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
+      } else {
+        setToast({ message: msg, type: 'error' });
+      }
+    } finally {
+      setChangeStatusSubmitting(false);
+    }
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlan) return;
@@ -236,7 +265,7 @@ export const SubscriptionPlansView: React.FC = () => {
             plan={changingStatusPlan}
             submitting={changeStatusSubmitting}
             onClose={() => setChangingStatusPlan(null)}
-            onConfirm={() => {}}
+            onConfirm={handleChangeStatusConfirm}
           />
         )}
         {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
@@ -523,7 +552,7 @@ export const SubscriptionPlansView: React.FC = () => {
           plan={changingStatusPlan}
           submitting={changeStatusSubmitting}
           onClose={() => setChangingStatusPlan(null)}
-          onConfirm={() => {}}
+          onConfirm={handleChangeStatusConfirm}
         />
       )}
 
