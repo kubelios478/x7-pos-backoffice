@@ -127,6 +127,15 @@ describe('SubscriptionPlansView — table rendering', () => {
       expect(screen.getByText('inactive')).toBeInTheDocument();
     });
   });
+
+  it('inactive plan rows have opacity-75 class', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Legacy Basic')).toBeInTheDocument());
+
+    const legacyCell = screen.getByText('Legacy Basic');
+    const row = legacyCell.closest('tr');
+    expect(row).toHaveClass('opacity-75');
+  });
 });
 
 describe('SubscriptionPlansView — filter strip', () => {

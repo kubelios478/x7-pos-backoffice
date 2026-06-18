@@ -398,7 +398,10 @@ export const SubscriptionPlansView: React.FC = () => {
                 </tr>
               ) : (
                 filtered.map((plan) => (
-                  <tr key={plan.id} className="group hover:bg-[#f8f3eb] transition-colors">
+                  <tr
+                    key={plan.id}
+                    className={`group hover:bg-[#f8f3eb] transition-colors${plan.status === 'inactive' ? ' opacity-75' : ''}`}
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div
