@@ -8,12 +8,14 @@ import type { SubscriptionPlan } from '../../types/subscription';
 vi.mock('../../services/saasService', () => ({
   saasService: {
     getSubscriptionPlans: vi.fn(),
+    createSubscriptionPlan: vi.fn(),
+    updateSubscriptionPlan: vi.fn(),
   },
 }));
 
 const MOCK_PLANS: SubscriptionPlan[] = [
   {
-    id: 'plan_starter_001',
+    id: 1,
     name: 'Starter',
     description: 'Entry-level plan for quick service restaurants.',
     price: 49.99,
@@ -21,7 +23,7 @@ const MOCK_PLANS: SubscriptionPlan[] = [
     status: 'active',
   },
   {
-    id: 'plan_pro_002',
+    id: 2,
     name: 'Professional',
     description: 'Multi-location support with advanced reporting.',
     price: 129.99,
@@ -29,15 +31,15 @@ const MOCK_PLANS: SubscriptionPlan[] = [
     status: 'active',
   },
   {
-    id: 'plan_ent_003',
+    id: 3,
     name: 'Enterprise',
     description: 'Unlimited locations with white-label options.',
     price: 1199.99,
-    billingCycle: 'annual',
+    billingCycle: 'yearly',
     status: 'active',
   },
   {
-    id: 'plan_legacy_000',
+    id: 4,
     name: 'Legacy Basic',
     description: 'Deprecated legacy tier. Grandfathered accounts only.',
     price: 19.99,
@@ -80,7 +82,7 @@ describe('SubscriptionPlansView — table rendering', () => {
   it('renders each plan id inside a <code> element', async () => {
     renderView();
     await waitFor(() => {
-      const codeEl = screen.getByText('plan_starter_001');
+      const codeEl = screen.getByText('1');
       expect(codeEl.tagName).toBe('CODE');
     });
   });
@@ -107,7 +109,7 @@ describe('SubscriptionPlansView — table rendering', () => {
     await waitFor(() => {
       const monthlyLabels = screen.getAllByText('/ monthly');
       expect(monthlyLabels.length).toBeGreaterThan(0);
-      expect(screen.getByText('/ annual')).toBeInTheDocument();
+      expect(screen.getByText('/ yearly')).toBeInTheDocument();
     });
   });
 
@@ -175,7 +177,7 @@ describe('SubscriptionPlansView — filter strip', () => {
 
     await user.selectOptions(
       screen.getByTestId('filter-billing-cycle'),
-      'annual',
+      'yearly',
     );
 
     expect(screen.getByText('Enterprise')).toBeInTheDocument();
@@ -234,7 +236,7 @@ describe('SubscriptionPlansView — filter strip', () => {
 
     expect(options).toContain('All Cycles');
     expect(options).toContain('monthly');
-    expect(options).toContain('annual');
+    expect(options).toContain('yearly');
   });
 });
 
@@ -262,5 +264,221 @@ describe('SubscriptionPlansView — empty data state', () => {
     await waitFor(() => {
       expect(screen.queryByText('SUBSCRIPTION MASTER PLANS')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('SubscriptionPlansView — edit plan', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue(MOCK_PLANS);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders an edit button for each plan row', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    const editButtons = screen.getAllByRole('button', { name: /^Edit /i });
+    expect(editButtons).toHaveLength(MOCK_PLANS.length);
+  });
+
+  it('edit button has correct aria-label', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: 'Edit Starter' })).toBeInTheDocument();
+  });
+
+  it('clicking edit opens modal pre-filled with plan name', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+
+    expect(screen.getByText('EDIT SUBSCRIPTION PLAN')).toBeInTheDocument();
+    const nameInput = screen.getByPlaceholderText('e.g. Professional') as HTMLInputElement;
+    expect(nameInput.value).toBe('Starter');
+  });
+
+  it('clicking edit pre-fills price and billingCycle', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+
+    const priceInput = screen.getByPlaceholderText('0.00') as HTMLInputElement;
+    expect(priceInput.value).toBe('49.99');
+
+    const billingSelect = screen.getByDisplayValue('Monthly') as HTMLSelectElement;
+    expect(billingSelect.value).toBe('monthly');
+  });
+
+  it('submitting edit calls updateSubscriptionPlan with correct payload', async () => {
+    const updatedPlan = { ...MOCK_PLANS[0], name: 'Starter Edited' };
+    vi.mocked(saasService.updateSubscriptionPlan).mockResolvedValue(updatedPlan);
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+
+    const nameInput = screen.getByPlaceholderText('e.g. Professional');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Starter Edited');
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(saasService.updateSubscriptionPlan).toHaveBeenCalledWith(1, {
+        name: 'Starter Edited',
+        description: 'Entry-level plan for quick service restaurants.',
+        price: 49.99,
+        billingCycle: 'monthly',
+        status: 'active',
+      });
+    });
+  });
+
+  it('successful update patches the row in the table without re-fetch', async () => {
+    const updatedPlan = { ...MOCK_PLANS[0], name: 'Starter Renamed' };
+    vi.mocked(saasService.updateSubscriptionPlan).mockResolvedValue(updatedPlan);
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+    const nameInput = screen.getByPlaceholderText('e.g. Professional');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Starter Renamed');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Starter Renamed')).toBeInTheDocument();
+      expect(screen.queryByText('Starter')).not.toBeInTheDocument();
+    });
+  });
+
+  it('successful update shows success toast', async () => {
+    const updatedPlan = { ...MOCK_PLANS[0] };
+    vi.mocked(saasService.updateSubscriptionPlan).mockResolvedValue(updatedPlan);
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Subscription plan updated successfully')).toBeInTheDocument();
+    });
+  });
+
+  it('SESSION_EXPIRED closes modal and shows error toast', async () => {
+    vi.mocked(saasService.updateSubscriptionPlan).mockRejectedValue(new Error('SESSION_EXPIRED'));
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('EDIT SUBSCRIPTION PLAN')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Session expired. Please refresh the page to sign in again.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('server error shows inline form error and keeps modal open', async () => {
+    vi.mocked(saasService.updateSubscriptionPlan).mockRejectedValue(
+      new Error('A plan with this name already exists'),
+    );
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Edit Starter' }));
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('EDIT SUBSCRIPTION PLAN')).toBeInTheDocument();
+      expect(screen.getByText('A plan with this name already exists')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('SubscriptionPlansView — change status button', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue(MOCK_PLANS);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders a Deactivate button for each active plan', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+    const deactivateButtons = screen.getAllByRole('button', { name: /^Deactivate /i });
+    expect(deactivateButtons).toHaveLength(3);
+  });
+
+  it('renders an Activate button for the inactive plan', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('Legacy Basic')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Activate Legacy Basic' })).toBeInTheDocument();
+  });
+
+  it('clicking Deactivate Starter opens dialog with deactivation copy', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Deactivate Starter' }));
+
+    expect(screen.getByText('DEACTIVATE PLAN')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Deactivating "Starter" will prevent new business accounts from purchasing this tier. All existing merchant subscriptions and historical analytics remain fully preserved.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('clicking Activate Legacy Basic opens dialog with reactivation copy', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Legacy Basic')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Activate Legacy Basic' }));
+
+    expect(screen.getByText('REACTIVATE PLAN')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Reactivating "Legacy Basic" will make it available for new signups immediately.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('clicking Cancel closes the dialog', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Deactivate Starter' }));
+    expect(screen.getByText('DEACTIVATE PLAN')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByText('DEACTIVATE PLAN')).not.toBeInTheDocument();
   });
 });
