@@ -495,3 +495,80 @@ describe('SubscriptionPlansView — delete plan', () => {
     expect(editButton).toBeDisabled();
   });
 });
+
+describe('SubscriptionPlansView — delete plan confirm', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getSubscriptionPlans).mockResolvedValue(MOCK_PLANS);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('confirming delete calls deleteSubscriptionPlan with the plan id', async () => {
+    const deletedPlan = { ...MOCK_PLANS[0], status: 'deleted' as const };
+    vi.mocked(saasService.deleteSubscriptionPlan).mockResolvedValue(deletedPlan);
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
+    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
+
+    await waitFor(() => {
+      expect(saasService.deleteSubscriptionPlan).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it('successful delete updates row in-place and shows success toast', async () => {
+    const deletedPlan = { ...MOCK_PLANS[0], status: 'deleted' as const };
+    vi.mocked(saasService.deleteSubscriptionPlan).mockResolvedValue(deletedPlan);
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
+    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
+      expect(screen.getByText('Plan deleted successfully')).toBeInTheDocument();
+    });
+  });
+
+  it('SESSION_EXPIRED closes dialog and shows session-expired toast', async () => {
+    vi.mocked(saasService.deleteSubscriptionPlan).mockRejectedValue(
+      new Error('SESSION_EXPIRED'),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
+    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Session expired. Please refresh the page to sign in again.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('other API error closes dialog and shows error toast', async () => {
+    vi.mocked(saasService.deleteSubscriptionPlan).mockRejectedValue(
+      new Error('Plan has active subscriptions'),
+    );
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('Starter')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Delete Starter' }));
+    await user.click(screen.getByRole('button', { name: /^delete plan$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('DELETE PLAN')).not.toBeInTheDocument();
+      expect(screen.getByText('Plan has active subscriptions')).toBeInTheDocument();
+    });
+  });
+});

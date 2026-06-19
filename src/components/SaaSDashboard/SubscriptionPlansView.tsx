@@ -116,6 +116,27 @@ export const SubscriptionPlansView: React.FC = () => {
     setEditFormError('');
   };
 
+  const handleDeleteConfirm = async () => {
+    if (!deletingPlan) return;
+    setDeleteSubmitting(true);
+    try {
+      const updated = await saasService.deleteSubscriptionPlan(deletingPlan.id);
+      setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setDeletingPlan(null);
+      setToast({ message: 'Plan deleted successfully', type: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete plan';
+      setDeletingPlan(null);
+      if (msg === 'SESSION_EXPIRED') {
+        setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
+      } else {
+        setToast({ message: msg, type: 'error' });
+      }
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlan) return;
@@ -236,7 +257,7 @@ export const SubscriptionPlansView: React.FC = () => {
             plan={deletingPlan}
             submitting={deleteSubmitting}
             onClose={() => setDeletingPlan(null)}
-            onConfirm={() => {}}
+            onConfirm={handleDeleteConfirm}
           />
         )}
         {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
@@ -529,7 +550,7 @@ export const SubscriptionPlansView: React.FC = () => {
           plan={deletingPlan}
           submitting={deleteSubmitting}
           onClose={() => setDeletingPlan(null)}
-          onConfirm={() => {}}
+          onConfirm={handleDeleteConfirm}
         />
       )}
 
