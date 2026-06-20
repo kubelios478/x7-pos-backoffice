@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { SaasOverviewContent } from './SaasOverviewContent';
 import { setSimulateApiFailure, getSimulateApiFailure } from '../../services/saasService';
+import { SubscriptionPlansView } from './SubscriptionPlansView';
+import { SaasLoginOverlay } from './SaasLoginOverlay';
+import { isSaasAuthenticated } from '../../lib/saas-auth-storage';
+import logoX7 from '../../assets/logo-x7.png';
 
 export const SaaSDashboard: React.FC = () => {
+  const [saasAuthenticated, setSaasAuthenticated] = useState(isSaasAuthenticated);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchText, setSearchText] = useState<string>('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
@@ -66,27 +71,66 @@ export const SaaSDashboard: React.FC = () => {
 
   // Renderizar vistas según la pestaña activa (AC 1.1 y 4.3)
   const renderContent = () => {
+    if (activeTab === 'subscription') {
+      return <SubscriptionPlansView />;
+    }
+
+    if (
+      activeTab === 'subscription-applications' ||
+      activeTab === 'subscription-features' ||
+      activeTab === 'subscription-payments'
+    ) {
+      const subConfig = {
+        'subscription-applications': {
+          icon: 'apps',
+          title: 'Platform Applications',
+          desc: 'Software ecosystems and applications linked to subscription plans.',
+        },
+        'subscription-features': {
+          icon: 'featured_play_list',
+          title: 'Feature Catalog Map',
+          desc: 'Master feature flags and platform capability tables.',
+        },
+        'subscription-payments': {
+          icon: 'payments',
+          title: 'Subscription Payments',
+          desc: 'Centralized billing book tracking payment logs from active merchants.',
+        },
+      }[activeTab as 'subscription-applications' | 'subscription-features' | 'subscription-payments'];
+      return (
+        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
+          <span className="material-symbols-outlined text-[#d51f2c] text-6xl">{subConfig.icon}</span>
+          <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">{subConfig.title}</h2>
+          <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">{subConfig.desc}</p>
+          <button
+            onClick={() => setActiveTab('subscription')}
+            className="mt-6 px-4 py-2 bg-[#222222] text-white font-bold text-label-caps hover:bg-[#d51f2c] transition-all"
+          >
+            Back to Subscription Plans
+          </button>
+        </div>
+      );
+    }
+
     if (activeTab !== 'dashboard') {
       return (
-        <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded">
+        <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">
-            {activeTab === 'subscription' && 'loyalty'}
             {activeTab === 'companies' && 'corporate_fare'}
             {activeTab === 'merchants' && 'store'}
             {activeTab === 'users' && 'group'}
             {activeTab === 'reports' && 'description'}
           </span>
           <h2 className="text-h2 font-black text-[#222222] mt-4 uppercase">
-            {activeTab === 'subscription' && 'Subscription System'}
             {activeTab === 'companies' && 'Companies Registry'}
             {activeTab === 'merchants' && 'Merchants Registry'}
             {activeTab === 'users' && 'Platform Users'}
             {activeTab === 'reports' && 'System Reports'}
           </h2>
-          <p className="text-body-md text-[#666666] mt-2 max-w-md mx-auto">
+          <p className="text-body-md text-[#666666] mt-2 max-w-md text-center">
             Esta sección virtual simula la ruta SPA para{' '}
-            <strong className="text-[#d51f2c]">/{activeTab}</strong>. Toda la navegación se realiza
-            reactivamente sin recargas de página físicas.
+            <strong className="text-[#d51f2c]">/{activeTab}</strong>. Toda la navegación se
+            realiza reactivamente sin recargas de página físicas.
           </p>
           <button
             onClick={() => setActiveTab('dashboard')}
@@ -106,14 +150,19 @@ export const SaaSDashboard: React.FC = () => {
     );
   };
 
+  if (!saasAuthenticated) {
+    return <SaasLoginOverlay onSuccess={() => setSaasAuthenticated(true)} />;
+  }
+
   return (
     <div className="text-on-background antialiased font-sans bg-[#f1ece4] min-h-screen text-[14px]">
       {/* SideNavBar Shell */}
       <aside className="fixed left-0 top-0 h-full w-64 bg-[#222222] border-r border-[#333333] flex flex-col z-50">
         <div className="p-6 flex items-center gap-3">
+          <img src={logoX7} alt="X7" className="w-20 h-20 object-contain brightness-0 invert" />
           <div className="flex flex-col">
             <h2 className="text-md font-black text-white tracking-tight leading-none">
-              X7 POINT OF SALE
+              POINT OF SALE
             </h2>
             <span className="text-[10px] font-bold uppercase tracking-widest text-[#d51f2c] mt-1">
               Backoffice
@@ -132,29 +181,27 @@ export const SaaSDashboard: React.FC = () => {
             {/* Sub-items (AC 1.1 y 1.2) */}
             <div className="mt-1 ml-4 border-l border-white/20 flex flex-col space-y-1">
               {[
-                { id: 'dashboard', label: 'Dashboard' },
-                { id: 'subscription', label: 'Subscription System' },
-                { id: 'companies', label: 'Companies' },
-                { id: 'merchants', label: 'Merchants' },
-                { id: 'users', label: 'Users' },
-                { id: 'reports', label: 'Reports' },
+                { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+                { id: 'subscription', label: 'Subscription Plans', icon: 'workspace_premium' },
+                { id: 'companies', label: 'Companies', icon: 'corporate_fare' },
+                { id: 'merchants', label: 'Merchants', icon: 'store' },
+                { id: 'users', label: 'Users', icon: 'group' },
+                { id: 'reports', label: 'Reports', icon: 'description' },
               ].map((item) => {
-                const isActive = activeTab === item.id;
+                const isActive =
+                  activeTab === item.id ||
+                  (item.id === 'subscription' && activeTab.startsWith('subscription-'));
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
-                    className={`pl-6 py-2 text-[13px] text-left transition-colors flex items-center gap-2 w-full ${
+                    className={`pl-4 pr-3 py-2 text-[13px] text-left transition-colors flex items-center gap-2.5 w-full ${
                       isActive
                         ? 'text-[#d51f2c] font-semibold bg-white/5 border-l-2 border-[#d51f2c] -ml-[1px]'
                         : 'text-white/70 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span
-                      className={`w-1 h-1 rounded-full ${
-                        isActive ? 'bg-[#d51f2c]' : 'bg-transparent'
-                      }`}
-                    ></span>
+                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
                     {item.label}
                   </button>
                 );
@@ -267,17 +314,31 @@ export const SaaSDashboard: React.FC = () => {
 
       {/* Main Content Canvas */}
       <main className="ml-64 pt-16 min-h-screen">
-        <div className="p-gutter max-w-[1600px] mx-auto space-y-gutter">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
           {/* Dashboard Header */}
           <div className="flex justify-between items-end">
             <div>
               <h1 className="font-sans text-h1 text-[#222222] uppercase tracking-tighter">
-                Platform SaaS <span className="text-[#d51f2c]">/</span> {activeTab === 'dashboard' ? 'Overview' : activeTab}
+                Platform SaaS <span className="text-[#d51f2c]">/</span>{' '}
+                {activeTab === 'dashboard' ? 'Overview'
+                  : activeTab === 'subscription' ? 'Subscription Plans'
+                  : activeTab === 'subscription-applications' ? 'Applications'
+                  : activeTab === 'subscription-features' ? 'Feature Catalog'
+                  : activeTab === 'subscription-payments' ? 'Payments'
+                  : activeTab}
               </h1>
               <p className="text-body-md text-[#666666] mt-1">
                 {activeTab === 'dashboard'
                   ? 'Real-time performance metrics and merchant growth tracking.'
-                  : `Visualización interactiva y gestión para /${activeTab}.`}
+                  : activeTab === 'subscription'
+                    ? 'Manage subscription tiers, pricing models, and billing cadences for your platform.'
+                    : activeTab === 'subscription-applications'
+                      ? 'Manage software ecosystems and applications linked to subscription plans.'
+                      : activeTab === 'subscription-features'
+                        ? 'Configure master feature flags and platform capability tables.'
+                        : activeTab === 'subscription-payments'
+                          ? 'Track payment logs and incoming cash movements from active merchants.'
+                          : `Visualización interactiva y gestión para /${activeTab}.`}
               </p>
             </div>
             {activeTab === 'dashboard' && (

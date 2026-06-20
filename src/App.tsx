@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ResetPasswordSuccessPage } from './pages/ResetPasswordSuccessPage';
+import SaaSDashboard from './components/SaaSDashboard/SaaSDashboard';
 import { isAuthenticated } from './lib/auth-storage';
 
 function RootRedirect() {
@@ -74,6 +75,10 @@ export default function App() {
               <RestaurantDashboard />
             </ProtectedRoute>
           }
+        />
+        <Route
+          path="/saas-admin"
+          element={<SaaSDashboard />}
         />
         <Route path="*" element={<Navigate replace to="/login" />} />
       </Routes>

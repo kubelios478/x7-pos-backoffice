@@ -1,3 +1,27 @@
+import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto } from '../types/subscription';
+import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
+
+async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getSaasToken();
+  const res = await fetch(`/api/${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers as Record<string, string> | undefined),
+    },
+  });
+  if (res.status === 401) {
+    clearSaasToken();
+    throw new Error('SESSION_EXPIRED');
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { message?: string }).message || `Request failed: ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export interface MerchantMetric {
   count: number;
   terminals: number;
@@ -191,5 +215,40 @@ export const saasService = {
         cloudNodes: 'operational',
       },
     };
+  },
+
+  async getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    const response = await saasApiFetch<{
+      data: SubscriptionPlan[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+    }>('subscription-plan');
+    return response.data.map((plan) => ({ ...plan, price: Number(plan.price) }));
+  },
+
+  async createSubscriptionPlan(dto: CreateSubscriptionPlanDto): Promise<SubscriptionPlan> {
+    const response = await saasApiFetch<{ data: SubscriptionPlan }>('subscription-plan', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+    return { ...response.data, price: Number(response.data.price) };
+  },
+
+  async updateSubscriptionPlan(id: number, dto: UpdateSubscriptionPlanDto): Promise<SubscriptionPlan> {
+    const response = await saasApiFetch<{ data: SubscriptionPlan }>(
+      `subscription-plan/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      },
+    );
+    return { ...response.data, price: Number(response.data.price) };
+  },
+
+  async deleteSubscriptionPlan(id: number): Promise<SubscriptionPlan> {
+    const response = await saasApiFetch<{ data: SubscriptionPlan }>(
+      `subscription-plan/${id}`,
+      { method: 'DELETE' },
+    );
+    return { ...response.data, price: Number(response.data.price) };
   },
 };

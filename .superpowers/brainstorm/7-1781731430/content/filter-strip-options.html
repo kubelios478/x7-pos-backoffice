@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filter Strip – Layout Options</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Poppins', sans-serif; background: #f1ece4; margin: 0; padding: 32px; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; display: inline-block; vertical-align: middle; }
+
+  /* Option cards */
+  .opt { border: 2px solid #e8e2d8; border-radius: 12px; padding: 20px; background: white; cursor: pointer; transition: border-color .2s; }
+  .opt:hover { border-color: #ae001a; }
+  .opt.selected { border-color: #ae001a; box-shadow: 0 0 0 3px rgba(174,0,26,0.12); }
+  .opt-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #5f5e5e; margin-bottom: 6px; }
+  .opt-title { font-size: 16px; font-weight: 700; color: #1d1c17; margin-bottom: 4px; }
+  .opt-desc { font-size: 13px; color: #5f5e5e; line-height: 1.5; margin-bottom: 16px; }
+
+  /* Mini mockup shared styles */
+  .table-header { background: #222222; color: white; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .table-col-header { background: #ece8e0; padding: 8px 16px; display: grid; grid-template-columns: 2fr 1.5fr 1fr 0.8fr 0.5fr; gap: 8px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #5f5e5e; border-bottom: 1px solid #e8e2d8; }
+  .table-row { padding: 10px 16px; display: grid; grid-template-columns: 2fr 1.5fr 1fr 0.8fr 0.5fr; gap: 8px; align-items: center; border-bottom: 1px solid #f2ede5; font-size: 12px; }
+  .badge { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; }
+  .badge-active { background: rgba(16,185,129,0.12); color: #059669; }
+  .badge-inactive { background: rgba(95,94,94,0.12); color: #5f5e5e; }
+  .billing-pill { background: #f2ede5; border: 1px solid #e8e2d8; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; color: #5f5e5e; }
+  .mock-input { border: 1px solid #e8e2d8; border-radius: 8px; background: #fef9f1; padding: 6px 12px 6px 30px; font-family: Poppins, sans-serif; font-size: 12px; color: #1d1c17; outline: none; width: 100%; box-sizing: border-box; }
+  .mock-select { border: 1px solid #e8e2d8; border-radius: 8px; background: #fef9f1; padding: 6px 10px; font-family: Poppins, sans-serif; font-size: 12px; color: #1d1c17; outline: none; }
+  .mock-btn-add { background: #ae001a; color: white; border: none; border-radius: 8px; padding: 6px 14px; font-family: Poppins, sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  .pros-list { margin: 0; padding: 0 0 0 16px; font-size: 12px; color: #5f5e5e; line-height: 1.8; }
+  .pros-list.good li::marker { color: #059669; }
+  .pros-list.warn li::marker { color: #ae001a; }
+</style>
+</head>
+<body>
+
+<div style="max-width:960px; margin:0 auto;">
+  <h2 style="font-size:22px; font-weight:700; color:#1d1c17; margin:0 0 6px;">¿Cómo debe vivir el Filter Control Strip?</h2>
+  <p style="font-size:14px; color:#5f5e5e; margin:0 0 28px;">El AC1 dice "directamente sobre la tabla". Aquí hay dos interpretaciones. Haz clic en la que prefieras.</p>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+    <!-- OPTION A -->
+    <div class="opt" data-choice="a" onclick="toggleSelect(this)">
+      <div class="opt-label">Opción A</div>
+      <div class="opt-title">Card separado encima</div>
+      <div class="opt-desc">El strip de filtros vive en su propia tarjeta blanca. Hay un espacio visual entre el card de filtros y la tabla. El botón ADD PLAN también vive aquí.</div>
+
+      <!-- Mini mockup A -->
+      <div style="border: 1px solid #e8e2d8; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+        <!-- Filter card -->
+        <div style="background: white; padding: 12px 16px; border-bottom: 2px solid #f2ede5; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <div style="position: relative; flex: 1; min-width: 140px;">
+            <span class="material-symbols-outlined" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); font-size:16px; color:#5f5e5e;">search</span>
+            <input class="mock-input" placeholder="Search plans..." readonly />
+          </div>
+          <select class="mock-select"><option>All Cycles</option></select>
+          <select class="mock-select"><option>All Status</option></select>
+          <button class="mock-btn-add">
+            <span class="material-symbols-outlined" style="font-size:14px;">add</span>
+            ADD PLAN
+          </button>
+        </div>
+        <!-- Gap visual -->
+        <div style="height: 10px; background: #f2ede5;"></div>
+        <!-- Table -->
+        <div class="table-header">SUBSCRIPTION MASTER PLANS <span style="opacity:.5; font-size:10px;">3 plans</span></div>
+        <div class="table-col-header"><span>Plan Name & ID</span><span>Description</span><span style="text-align:center">Pricing</span><span style="text-align:center">Status</span><span></span></div>
+        <div class="table-row"><div><b>Starter</b><br><code style="font-size:9px; color:#5f5e5e;">plan_starter_001</code></div><div style="color:#5f5e5e; font-size:11px;">Entry-level for quick service…</div><div style="text-align:center"><b>$49.99</b><br><span class="billing-pill">monthly</span></div><div style="text-align:center"><span class="badge badge-active">Active</span></div><div>…</div></div>
+        <div class="table-row"><div><b>Professional</b><br><code style="font-size:9px; color:#5f5e5e;">plan_pro_002</code></div><div style="color:#5f5e5e; font-size:11px;">Multi-location support…</div><div style="text-align:center"><b>$129.99</b><br><span class="billing-pill">monthly</span></div><div style="text-align:center"><span class="badge badge-active">Active</span></div><div>…</div></div>
+        <div class="table-row" style="opacity:.6"><div><b>Legacy Basic</b><br><code style="font-size:9px; color:#5f5e5e;">plan_legacy_000</code></div><div style="color:#5f5e5e; font-size:11px;">Deprecated legacy tier…</div><div style="text-align:center"><b>$19.99</b><br><span class="billing-pill">monthly</span></div><div style="text-align:center"><span class="badge badge-inactive">Inactive</span></div><div>…</div></div>
+      </div>
+
+      <ul class="pros-list good">
+        <li>Más espacio visual — los filtros no se "pegan" a la tabla</li>
+        <li>Fácil de extender con más controles en el futuro</li>
+        <li>Consistente con el pattern de <em>Product Categories</em></li>
+      </ul>
+    </div>
+
+    <!-- OPTION B -->
+    <div class="opt" data-choice="b" onclick="toggleSelect(this)">
+      <div class="opt-label">Opción B</div>
+      <div class="opt-title">Strip integrado en la tabla</div>
+      <div class="opt-desc">El strip de filtros vive dentro del mismo card de la tabla, entre el header oscuro y los column headers. Sin separación visual — "directamente sobre" la tabla.</div>
+
+      <!-- Mini mockup B -->
+      <div style="border: 1px solid #e8e2d8; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+        <!-- Add Plan button sits outside/above -->
+        <div style="background: white; padding: 10px 16px; border-bottom: 1px solid #f2ede5; display: flex; justify-content: flex-end;">
+          <button class="mock-btn-add">
+            <span class="material-symbols-outlined" style="font-size:14px;">add</span>
+            ADD PLAN
+          </button>
+        </div>
+        <!-- Table card with embedded filter strip -->
+        <div class="table-header">SUBSCRIPTION MASTER PLANS <span style="opacity:.5; font-size:10px;">3 plans</span></div>
+        <!-- Filter strip inside the card -->
+        <div style="background: #2e2e2e; padding: 10px 16px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="position: relative; flex: 1;">
+            <span class="material-symbols-outlined" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); font-size:15px; color:rgba(255,255,255,0.4);">search</span>
+            <input style="width:100%; padding:5px 10px 5px 28px; border:1px solid rgba(255,255,255,0.15); border-radius:6px; background:rgba(255,255,255,0.08); font-family:Poppins,sans-serif; font-size:12px; color:white; outline:none; box-sizing:border-box;" placeholder="Search plans..." readonly />
+          </div>
+          <select style="border:1px solid rgba(255,255,255,0.15); border-radius:6px; background:rgba(255,255,255,0.08); font-family:Poppins,sans-serif; font-size:11px; color:white; padding:5px 8px; outline:none;"><option>All Cycles</option></select>
+          <select style="border:1px solid rgba(255,255,255,0.15); border-radius:6px; background:rgba(255,255,255,0.08); font-family:Poppins,sans-serif; font-size:11px; color:white; padding:5px 8px; outline:none;"><option>All Status</option></select>
+        </div>
+        <!-- Table -->
+        <div class="table-col-header"><span>Plan Name & ID</span><span>Description</span><span style="text-align:center">Pricing</span><span style="text-align:center">Status</span><span></span></div>
+        <div class="table-row"><div><b>Starter</b><br><code style="font-size:9px; color:#5f5e5e;">plan_starter_001</code></div><div style="color:#5f5e5e; font-size:11px;">Entry-level for quick service…</div><div style="text-align:center"><b>$49.99</b><br><span class="billing-pill">monthly</span></div><div style="text-align:center"><span class="badge badge-active">Active</span></div><div>…</div></div>
+        <div class="table-row"><div><b>Professional</b><br><code style="font-size:9px; color:#5f5e5e;">plan_pro_002</code></div><div style="color:#5f5e5e; font-size:11px;">Multi-location support…</div><div style="text-align:center"><b>$129.99</b><br><span class="billing-pill">monthly</span></div><div style="text-align:center"><span class="badge badge-active">Active</span></div><div>…</div></div>
+        <div class="table-row" style="opacity:.6"><div><b>Legacy Basic</b><br><code style="font-size:9px; color:#5f5e5e;">plan_legacy_000</code></div><div style="color:#5f5e5e; font-size:11px;">Deprecated legacy tier…</div><div style="text-align:center"><b>$19.99</b><br><span class="billing-pill">monthly</span></div><div style="text-align:center"><span class="badge badge-inactive">Inactive</span></div><div>…</div></div>
+      </div>
+
+      <ul class="pros-list good">
+        <li>Interpretación más literal del AC1 ("directamente sobre")</li>
+        <li>Layout más compacto — menos scroll</li>
+      </ul>
+      <ul class="pros-list warn" style="margin-top:6px;">
+        <li>Filtros oscuros pueden verse pesados visualmente</li>
+        <li>Menos espacio para futuros controles (date range, etc.)</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <p style="font-size:13px; color:#5f5e5e; margin-top:24px; text-align:center;">
+    Mi recomendación: <strong>Opción A</strong> — es consistente con el patrón que ya existe en Product Categories y da más flexibilidad.
+  </p>
+</div>
+
+<script>
+function toggleSelect(el) {
+  document.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.recordChoice) recordChoice(el.dataset.choice, el.querySelector('.opt-title').textContent);
+}
+</script>
+</body>
+</html>
