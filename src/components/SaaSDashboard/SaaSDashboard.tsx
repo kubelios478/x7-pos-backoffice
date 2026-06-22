@@ -5,6 +5,7 @@ import { SubscriptionPlansView } from './SubscriptionPlansView';
 import { SaasLoginOverlay } from './SaasLoginOverlay';
 import { isSaasAuthenticated } from '../../lib/saas-auth-storage';
 import logoX7 from '../../assets/logo-x7.png';
+import { PlatformApplicationsView } from './PlatformApplicationsView';
 
 export const SaaSDashboard: React.FC = () => {
   const [saasAuthenticated, setSaasAuthenticated] = useState(isSaasAuthenticated);
@@ -72,20 +73,18 @@ export const SaaSDashboard: React.FC = () => {
   // Renderizar vistas según la pestaña activa (AC 1.1 y 4.3)
   const renderContent = () => {
     if (activeTab === 'subscription') {
-      return <SubscriptionPlansView />;
+      return <SubscriptionPlansView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'subscription-applications') {
+      return <PlatformApplicationsView />;
     }
 
     if (
-      activeTab === 'subscription-applications' ||
       activeTab === 'subscription-features' ||
       activeTab === 'subscription-payments'
     ) {
       const subConfig = {
-        'subscription-applications': {
-          icon: 'apps',
-          title: 'Platform Applications',
-          desc: 'Software ecosystems and applications linked to subscription plans.',
-        },
         'subscription-features': {
           icon: 'featured_play_list',
           title: 'Feature Catalog Map',
@@ -96,7 +95,7 @@ export const SaaSDashboard: React.FC = () => {
           title: 'Subscription Payments',
           desc: 'Centralized billing book tracking payment logs from active merchants.',
         },
-      }[activeTab as 'subscription-applications' | 'subscription-features' | 'subscription-payments'];
+      }[activeTab as 'subscription-features' | 'subscription-payments'];
       return (
         <div className="bg-white border border-[#e8e2d8] p-12 rounded flex flex-col items-center text-center">
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">{subConfig.icon}</span>
