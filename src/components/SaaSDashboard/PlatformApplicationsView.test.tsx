@@ -346,3 +346,205 @@ describe('PlatformApplicationsView — toggle status action', () => {
     });
   });
 });
+
+describe('PlatformApplicationsView — register application', () => {
+  const NEW_APP: Application = {
+    id: 99,
+    name: 'Loyalty Engine',
+    description: 'Customer loyalty points management system.',
+    category: 'Marketing',
+    status: 'active',
+  };
+
+  beforeEach(() => {
+    vi.mocked(saasService.getApplications).mockResolvedValue(MOCK_APPS);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('renders the REGISTER APPLICATION button in the filter strip', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /^register application$/i })).toBeInTheDocument();
+  });
+
+  it('renders the FAB register button', async () => {
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /open register-application form/i })).toBeInTheDocument();
+  });
+
+  it('clicking REGISTER APPLICATION opens the creation modal', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+
+    expect(screen.getByText('REGISTER APPLICATION')).toBeInTheDocument();
+  });
+
+  it('clicking the FAB opens the creation modal', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /open register-application form/i }));
+
+    expect(screen.getByText('REGISTER APPLICATION')).toBeInTheDocument();
+  });
+
+  it('modal form renders name, description, category fields and status select', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+
+    expect(screen.getByPlaceholderText('Application name')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Application description')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /status/i })).toBeInTheDocument();
+  });
+
+  it('Save Changes is disabled when name is empty', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
+  });
+
+  it('Save Changes is disabled when category is empty', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+
+    await user.type(screen.getByPlaceholderText('Application name'), 'Test App');
+    await user.type(screen.getByPlaceholderText('Application description'), 'A description');
+    // category left empty
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
+  });
+
+  it('name field exceeding 100 characters disables Save Changes', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+
+    const longName = 'A'.repeat(101);
+    await user.type(screen.getByPlaceholderText('Application name'), longName);
+    await user.type(screen.getByPlaceholderText('Application description'), 'desc');
+    await user.type(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display'), 'Cat');
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
+  });
+
+  it('category field exceeding 50 characters disables Save Changes', async () => {
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+
+    await user.type(screen.getByPlaceholderText('Application name'), 'Valid Name');
+    await user.type(screen.getByPlaceholderText('Application description'), 'desc');
+    const longCategory = 'C'.repeat(51);
+    await user.type(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display'), longCategory);
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
+  });
+
+  it('successful creation closes modal, prepends new row, and shows success toast', async () => {
+    vi.mocked(saasService.createApplication).mockResolvedValue(NEW_APP);
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+    await user.type(screen.getByPlaceholderText('Application name'), NEW_APP.name);
+    await user.type(screen.getByPlaceholderText('Application description'), NEW_APP.description);
+    await user.type(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display'), NEW_APP.category);
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('REGISTER APPLICATION')).not.toBeInTheDocument();
+      expect(screen.getByText('Loyalty Engine')).toBeInTheDocument();
+      expect(screen.getByText('Application registered successfully')).toBeInTheDocument();
+    });
+  });
+
+  it('createApplication is called with correct payload including status active', async () => {
+    vi.mocked(saasService.createApplication).mockResolvedValue(NEW_APP);
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+    await user.type(screen.getByPlaceholderText('Application name'), NEW_APP.name);
+    await user.type(screen.getByPlaceholderText('Application description'), NEW_APP.description);
+    await user.type(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display'), NEW_APP.category);
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(saasService.createApplication).toHaveBeenCalledWith({
+        name: NEW_APP.name,
+        description: NEW_APP.description,
+        category: NEW_APP.category,
+        status: 'active',
+      });
+    });
+  });
+
+  it('SESSION_EXPIRED closes modal and shows session-expired toast', async () => {
+    vi.mocked(saasService.createApplication).mockRejectedValue(new Error('SESSION_EXPIRED'));
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+    await user.type(screen.getByPlaceholderText('Application name'), 'Any App');
+    await user.type(screen.getByPlaceholderText('Application description'), 'desc');
+    await user.type(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display'), 'Cat');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('REGISTER APPLICATION')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Session expired. Please refresh the page to sign in again.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('API error closes modal and shows error toast', async () => {
+    vi.mocked(saasService.createApplication).mockRejectedValue(
+      new Error('Application name already exists'),
+    );
+
+    const user = userEvent.setup();
+    renderView();
+    await waitFor(() => expect(screen.getByText('POS Terminal')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /^register application$/i }));
+    await user.type(screen.getByPlaceholderText('Application name'), 'Any App');
+    await user.type(screen.getByPlaceholderText('Application description'), 'desc');
+    await user.type(screen.getByPlaceholderText('e.g. POS Core, Utility, Kitchen Display'), 'Cat');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('REGISTER APPLICATION')).not.toBeInTheDocument();
+      expect(screen.getByText('Application name already exists')).toBeInTheDocument();
+    });
+  });
+});

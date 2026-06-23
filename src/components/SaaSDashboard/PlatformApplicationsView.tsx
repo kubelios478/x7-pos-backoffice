@@ -2,6 +2,239 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../services/saasService';
 import type { Application } from '../../types/subscription';
 
+interface EditAppDialogProps {
+  app: Application;
+  submitting: boolean;
+  onClose: () => void;
+  onSave: (updates: { name: string; description: string; category: string }) => void;
+}
+
+const EditAppDialog: React.FC<EditAppDialogProps> = ({ app, submitting, onClose, onSave }) => {
+  const [name, setName] = React.useState(app.name);
+  const [description, setDescription] = React.useState(app.description);
+  const [category, setCategory] = React.useState(app.category);
+
+  const isValid = name.trim() !== '' && category.trim() !== '';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-lg shadow-2xl">
+        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+            EDIT APPLICATION
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/50 hover:text-white transition-colors"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all"
+              placeholder="Application name"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all resize-none"
+              placeholder="Application description"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Category
+            </label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all"
+              placeholder="e.g. POS Core, Utility, Kitchen Display"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onSave({ name: name.trim(), description: description.trim(), category: category.trim() })}
+              disabled={submitting || !isValid}
+              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {submitting && (
+                <span className="material-symbols-outlined text-base animate-spin">
+                  progress_activity
+                </span>
+              )}
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface RegisterAppDialogProps {
+  submitting: boolean;
+  onClose: () => void;
+  onSave: (dto: { name: string; description: string; category: string; status: 'active' | 'inactive' }) => void;
+}
+
+const RegisterAppDialog: React.FC<RegisterAppDialogProps> = ({ submitting, onClose, onSave }) => {
+  const [name, setName] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [category, setCategory] = React.useState('');
+  const [status, setStatus] = React.useState<'active' | 'inactive'>('active');
+
+  const nameExceeded = name.length > 100;
+  const categoryExceeded = category.length > 50;
+  const isValid =
+    name.trim() !== '' &&
+    description.trim() !== '' &&
+    category.trim() !== '' &&
+    !nameExceeded &&
+    !categoryExceeded;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-lg shadow-2xl">
+        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-white">
+            REGISTER APPLICATION
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/50 hover:text-white transition-colors"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div className="space-y-1.5">
+            <div className="flex justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                Name
+              </label>
+              <span className={`text-[11px] ${nameExceeded ? 'text-[#ae001a] font-bold' : 'text-[#5f5e5e]'}`}>
+                {name.length}/100
+              </span>
+            </div>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={`w-full px-3 py-2 border bg-[#fef9f1] text-sm text-[#1d1c17] focus:ring-1 outline-none transition-all ${
+                nameExceeded
+                  ? 'border-[#ae001a] focus:border-[#ae001a] focus:ring-[#ae001a]'
+                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-[#ae001a]'
+              }`}
+              placeholder="Application name"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none transition-all resize-none"
+              placeholder="Application description"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex justify-between">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                Category
+              </label>
+              <span className={`text-[11px] ${categoryExceeded ? 'text-[#ae001a] font-bold' : 'text-[#5f5e5e]'}`}>
+                {category.length}/50
+              </span>
+            </div>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={`w-full px-3 py-2 border bg-[#fef9f1] text-sm text-[#1d1c17] focus:ring-1 outline-none transition-all ${
+                categoryExceeded
+                  ? 'border-[#ae001a] focus:border-[#ae001a] focus:ring-[#ae001a]'
+                  : 'border-[#e8e2d8] focus:border-[#ae001a] focus:ring-[#ae001a]'
+              }`}
+              placeholder="e.g. POS Core, Utility, Kitchen Display"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="register-status"
+              className="text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]"
+            >
+              Status
+            </label>
+            <select
+              id="register-status"
+              aria-label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+              className="w-full px-3 py-2 border border-[#e8e2d8] bg-[#fef9f1] text-sm text-[#1d1c17] focus:border-[#ae001a] outline-none transition-all"
+            >
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onSave({ name: name.trim(), description: description.trim(), category: category.trim(), status })}
+              disabled={submitting || !isValid}
+              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {submitting && (
+                <span className="material-symbols-outlined text-base animate-spin">
+                  progress_activity
+                </span>
+              )}
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface DeactivateAppDialogProps {
   app: Application;
   submitting: boolean;
@@ -86,11 +319,26 @@ const Toast: React.FC<ToastProps> = ({ toast, onDismiss }) => (
   </div>
 );
 
+function fuzzyMatch(query: string, target: string): boolean {
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+  let qi = 0;
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    if (t[i] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
 export const PlatformApplicationsView: React.FC = () => {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All Categories');
   const [statusFilter, setStatusFilter] = useState('All Status');
+  const [editingApp, setEditingApp] = useState<Application | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
   const [togglingApp, setTogglingApp] = useState<Application | null>(null);
   const [toggleSubmitting, setToggleSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -108,22 +356,75 @@ export const PlatformApplicationsView: React.FC = () => {
     return () => clearTimeout(t);
   }, [toast]);
 
+  const categories = useMemo(
+    () => Array.from(new Set(applications.map((a) => a.category))).sort(),
+    [applications],
+  );
+
   const filtered = useMemo(
     () =>
       applications
         .filter(
           (a) =>
             searchTerm === '' ||
-            a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            a.description.toLowerCase().includes(searchTerm.toLowerCase()),
+            fuzzyMatch(searchTerm, a.name) ||
+            fuzzyMatch(searchTerm, a.description),
         )
+        .filter((a) => categoryFilter === 'All Categories' || a.category === categoryFilter)
         .filter((a) => statusFilter === 'All Status' || a.status === statusFilter),
-    [applications, searchTerm, statusFilter],
+    [applications, searchTerm, categoryFilter, statusFilter],
   );
 
   const clearFilters = () => {
     setSearchTerm('');
+    setCategoryFilter('All Categories');
     setStatusFilter('All Status');
+  };
+
+  const handleEditSave = async (updates: { name: string; description: string; category: string }) => {
+    if (!editingApp) return;
+    setEditSubmitting(true);
+    try {
+      const updated = await saasService.updateApplication(editingApp, updates);
+      setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      setEditingApp(null);
+      setToast({ message: 'Application updated successfully', type: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update application';
+      setEditingApp(null);
+      if (msg === 'SESSION_EXPIRED') {
+        setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
+      } else {
+        setToast({ message: msg, type: 'error' });
+      }
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleCreateSave = async (dto: {
+    name: string;
+    description: string;
+    category: string;
+    status: 'active' | 'inactive';
+  }) => {
+    setCreateSubmitting(true);
+    try {
+      const newApp = await saasService.createApplication(dto);
+      setApplications((prev) => [newApp, ...prev]);
+      setIsCreating(false);
+      setToast({ message: 'Application registered successfully', type: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to register application';
+      setIsCreating(false);
+      if (msg === 'SESSION_EXPIRED') {
+        setToast({ message: 'Session expired. Please refresh the page to sign in again.', type: 'error' });
+      } else {
+        setToast({ message: msg, type: 'error' });
+      }
+    } finally {
+      setCreateSubmitting(false);
+    }
   };
 
   const handleToggleConfirm = async () => {
@@ -157,9 +458,8 @@ export const PlatformApplicationsView: React.FC = () => {
           inventory_2
         </span>
         <div className="text-center">
-          <h3 className="text-xl font-bold text-[#1d1c17]">No Applications Configured</h3>
-          <p className="text-sm text-[#5f5e5e] mt-2 max-w-md text-center">
-            No platform applications have been provisioned yet.
+          <p className="text-sm text-[#5f5e5e] max-w-md text-center">
+            No applications have been registered in the system. Click &apos;Register Application&apos; to deploy your first software module.
           </p>
         </div>
       </div>
@@ -184,8 +484,22 @@ export const PlatformApplicationsView: React.FC = () => {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <select
+            data-testid="filter-category"
+            aria-label="Filter by category"
+            className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded-xl text-sm focus:border-[#ae001a] outline-none font-[Poppins]"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="All Categories">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+          <select
             data-testid="filter-status"
-            aria-label="Filter by status"
+            aria-label="Filter applications by state"
             className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded-xl text-sm focus:border-[#ae001a] outline-none font-[Poppins]"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -201,6 +515,15 @@ export const PlatformApplicationsView: React.FC = () => {
           >
             Clear filters
           </button>
+          <button
+            type="button"
+            aria-label="Register Application"
+            onClick={() => setIsCreating(true)}
+            className="px-4 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">add</span>
+            Register Application
+          </button>
         </div>
       </div>
 
@@ -208,7 +531,7 @@ export const PlatformApplicationsView: React.FC = () => {
       <div className="bg-white border border-[#e8e2d8] overflow-hidden">
         <div className="px-4 py-3 bg-[#222222] flex justify-between items-center">
           <span className="text-[11px] font-bold uppercase tracking-widest text-white">
-            PLATFORM APPLICATIONS
+            PLATFORM APPLICATION MASTER DIRECTORY
           </span>
           <span className="text-white/50 text-xs">
             {loading ? '...' : `${filtered.length} applications`}
@@ -262,7 +585,7 @@ export const PlatformApplicationsView: React.FC = () => {
                         search_off
                       </span>
                       <p className="text-sm text-[#5f5e5e]">
-                        No applications match your search filters
+                        No applications match your filtering criteria
                       </p>
                       <button
                         type="button"
@@ -319,7 +642,7 @@ export const PlatformApplicationsView: React.FC = () => {
                         <button
                           type="button"
                           aria-label={`Edit ${app.name}`}
-                          onClick={() => alert('Edit simulation')}
+                          onClick={() => setEditingApp(app)}
                           className="p-1 hover:text-[#ae001a] transition-colors"
                         >
                           <span className="material-symbols-outlined text-xl">edit</span>
@@ -343,6 +666,32 @@ export const PlatformApplicationsView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <button
+        type="button"
+        aria-label="Open register-application form"
+        onClick={() => setIsCreating(true)}
+        className="fixed bottom-8 right-8 w-14 h-14 bg-[#ae001a] text-white rounded-full flex items-center justify-center shadow-xl hover:bg-[#930015] transition-all transform hover:scale-110 active:scale-95 z-50"
+      >
+        <span className="material-symbols-outlined text-3xl">add</span>
+      </button>
+
+      {isCreating && (
+        <RegisterAppDialog
+          submitting={createSubmitting}
+          onClose={() => setIsCreating(false)}
+          onSave={handleCreateSave}
+        />
+      )}
+
+      {editingApp && (
+        <EditAppDialog
+          app={editingApp}
+          submitting={editSubmitting}
+          onClose={() => setEditingApp(null)}
+          onSave={handleEditSave}
+        />
+      )}
 
       {togglingApp && (
         <DeactivateAppDialog
