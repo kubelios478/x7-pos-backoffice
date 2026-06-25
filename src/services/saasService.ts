@@ -310,4 +310,20 @@ export const saasService = {
     }>('features');
     return response.data;
   },
+
+  async createFeature(dto: {
+    name: string;
+    description: string;
+    Unit: string;
+    status: string;
+  }): Promise<PlatformFeature> {
+    const response = await saasApiFetch<{ data: PlatformFeature }>(
+      'features',
+      {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      },
+    );
+    return response.data;
+  },
 };
