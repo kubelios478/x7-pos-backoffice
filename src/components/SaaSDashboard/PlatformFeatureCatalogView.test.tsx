@@ -8,6 +8,7 @@ import type { PlatformFeature } from '../../types/subscription';
 vi.mock('../../services/saasService', () => ({
   saasService: {
     getFeatures: vi.fn(),
+    createFeature: vi.fn(),
   },
 }));
 
@@ -34,6 +35,14 @@ const MOCK_FEATURES: PlatformFeature[] = [
     status: 'active',
   },
 ];
+
+const NEW_FEATURE: PlatformFeature = {
+  id: 99,
+  name: 'New Test Feature',
+  description: 'A freshly created test feature.',
+  Unit: 'unit',
+  status: 'active',
+};
 
 afterEach(() => {
   cleanup();
@@ -403,5 +412,150 @@ describe('PlatformFeatureCatalogView — Quick Launch', () => {
     render(<PlatformFeatureCatalogView onNavigate={onNavigate} />);
     await userEvent.click(await screen.findByRole('button', { name: 'METERED USAGE LEDGER' }));
     expect(onNavigate).toHaveBeenCalledWith('subscription-live-installs');
+  });
+});
+
+describe('PlatformFeatureCatalogView — Create Feature entry points', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getFeatures).mockResolvedValue(MOCK_FEATURES);
+  });
+
+  it('renders the "+ CREATE FEATURE" button in the filter strip', async () => {
+    render(<PlatformFeatureCatalogView />);
+    expect(
+      await screen.findByRole('button', { name: 'Create Feature' }),
+    ).toBeInTheDocument();
+  });
+
+  it('clicking "+ CREATE FEATURE" opens the modal', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Create Feature' }));
+    expect(screen.getByText('CREATE FEATURE')).toBeInTheDocument();
+  });
+
+  it('renders the FAB button', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    expect(screen.getByRole('button', { name: 'Open create-feature form' })).toBeInTheDocument();
+  });
+
+  it('clicking the FAB opens the modal', async () => {
+    render(<PlatformFeatureCatalogView />);
+    await waitFor(() => screen.getByText('Advanced Analytics'));
+    await userEvent.click(screen.getByRole('button', { name: 'Open create-feature form' }));
+    expect(screen.getByText('CREATE FEATURE')).toBeInTheDocument();
+  });
+});
+
+describe('PlatformFeatureCatalogView — Create Feature modal validation', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getFeatures).mockResolvedValue(MOCK_FEATURES);
+  });
+
+  async function openModal() {
+    render(<PlatformFeatureCatalogView />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Create Feature' }));
+  }
+
+  it('modal renders Name, Description, and Unit fields', async () => {
+    await openModal();
+    expect(screen.getByPlaceholderText('Feature name')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Feature description')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. unit, user, gb')).toBeInTheDocument();
+  });
+
+  it('submit button is disabled when fields are empty', async () => {
+    await openModal();
+    expect(screen.getByRole('button', { name: /create feature/i })).toBeDisabled();
+  });
+
+  it('submit button is enabled when all fields are filled', async () => {
+    await openModal();
+    await userEvent.type(screen.getByPlaceholderText('Feature name'), 'My Feature');
+    await userEvent.type(screen.getByPlaceholderText('Feature description'), 'Some description');
+    await userEvent.type(screen.getByPlaceholderText('e.g. unit, user, gb'), 'unit');
+    expect(screen.getByRole('button', { name: /create feature/i })).toBeEnabled();
+  });
+
+  it('name counter turns red and submit is disabled when name exceeds 100 chars', async () => {
+    await openModal();
+    await userEvent.type(screen.getByPlaceholderText('Feature name'), 'A'.repeat(101));
+    await userEvent.type(screen.getByPlaceholderText('Feature description'), 'desc');
+    await userEvent.type(screen.getByPlaceholderText('e.g. unit, user, gb'), 'unit');
+    expect(screen.getByRole('button', { name: /create feature/i })).toBeDisabled();
+  });
+
+  it('unit counter turns red and submit is disabled when unit exceeds 50 chars', async () => {
+    await openModal();
+    await userEvent.type(screen.getByPlaceholderText('Feature name'), 'Valid Name');
+    await userEvent.type(screen.getByPlaceholderText('Feature description'), 'desc');
+    await userEvent.type(screen.getByPlaceholderText('e.g. unit, user, gb'), 'U'.repeat(51));
+    expect(screen.getByRole('button', { name: /create feature/i })).toBeDisabled();
+  });
+
+  it('clicking Cancel closes the modal', async () => {
+    await openModal();
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByText('CREATE FEATURE')).not.toBeInTheDocument();
+  });
+});
+
+describe('PlatformFeatureCatalogView — Create Feature submit', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getFeatures).mockResolvedValue(MOCK_FEATURES);
+  });
+
+  async function fillAndSubmit() {
+    render(<PlatformFeatureCatalogView />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Create Feature' }));
+    await userEvent.type(screen.getByPlaceholderText('Feature name'), NEW_FEATURE.name);
+    await userEvent.type(screen.getByPlaceholderText('Feature description'), NEW_FEATURE.description);
+    await userEvent.type(screen.getByPlaceholderText('e.g. unit, user, gb'), NEW_FEATURE.Unit);
+    await userEvent.click(screen.getByRole('button', { name: /create feature/i }));
+  }
+
+  it('on success: modal closes, new feature prepended, success toast shown', async () => {
+    vi.mocked(saasService.createFeature).mockResolvedValue(NEW_FEATURE);
+    await fillAndSubmit();
+    await waitFor(() => {
+      expect(screen.queryByText('CREATE FEATURE')).not.toBeInTheDocument();
+      expect(screen.getByText('New Test Feature')).toBeInTheDocument();
+      expect(screen.getByText('Feature created successfully')).toBeInTheDocument();
+    });
+  });
+
+  it('createFeature is called with correct payload including status active', async () => {
+    vi.mocked(saasService.createFeature).mockResolvedValue(NEW_FEATURE);
+    await fillAndSubmit();
+    await waitFor(() => {
+      expect(saasService.createFeature).toHaveBeenCalledWith({
+        name: NEW_FEATURE.name,
+        description: NEW_FEATURE.description,
+        Unit: NEW_FEATURE.Unit,
+        status: 'active',
+      });
+    });
+  });
+
+  it('SESSION_EXPIRED: modal closes, session-expired toast shown', async () => {
+    vi.mocked(saasService.createFeature).mockRejectedValue(new Error('SESSION_EXPIRED'));
+    await fillAndSubmit();
+    await waitFor(() => {
+      expect(screen.queryByText('CREATE FEATURE')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Session expired. Please refresh the page to sign in again.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('API error: modal closes, error message toast shown', async () => {
+    vi.mocked(saasService.createFeature).mockRejectedValue(
+      new Error('Feature name already exists'),
+    );
+    await fillAndSubmit();
+    await waitFor(() => {
+      expect(screen.queryByText('CREATE FEATURE')).not.toBeInTheDocument();
+      expect(screen.getByText('Feature name already exists')).toBeInTheDocument();
+    });
   });
 });
