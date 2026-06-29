@@ -205,8 +205,8 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
     setAssociateSubmitting(true);
     try {
       const newPA = await saasService.createPlanApplication({
-        subscriptionPlanId: plan.id,
-        applicationId: dto.applicationId,
+        subscriptionPlan: plan.id,
+        application: dto.applicationId,
         limits: dto.limits,
         status: 'active',
       });
