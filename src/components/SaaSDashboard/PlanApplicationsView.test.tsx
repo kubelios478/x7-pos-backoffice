@@ -10,6 +10,7 @@ vi.mock('../../services/saasService', () => ({
     getPlanApplications: vi.fn(),
     getApplications: vi.fn(),
     createPlanApplication: vi.fn(),
+    updatePlanApplication: vi.fn(),
   },
 }));
 
@@ -521,5 +522,196 @@ describe('PlanApplicationsView — associate application edge case', () => {
       expect(screen.getByText('All applications already associated')).toBeInTheDocument(),
     );
     expect(screen.getByRole('button', { name: /^associate$/i })).toBeDisabled();
+  });
+});
+
+describe('PlanApplicationsView — edit trigger (AC 1)', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+  });
+
+  it('each data row has a pencil button with correct aria-label', async () => {
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: /edit pos core/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit kitchen display/i })).toBeInTheDocument();
+  });
+
+  it('clicking the pencil button opens the edit modal', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument(),
+    );
+  });
+});
+
+describe('PlanApplicationsView — edit modal fields (AC 2)', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+  });
+
+  it('shows subscription plan name in a read-only input', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+
+    await waitFor(() => expect(screen.getByDisplayValue('Gold Plan')).toBeInTheDocument());
+    expect(screen.getByDisplayValue('Gold Plan')).toHaveAttribute('readonly');
+  });
+
+  it('shows application name in a read-only input', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+
+    await waitFor(() => expect(screen.getByDisplayValue('POS Core')).toBeInTheDocument());
+    expect(screen.getByDisplayValue('POS Core')).toHaveAttribute('readonly');
+  });
+
+  it('pre-fills the limits textarea with the current value', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Basic usage limit: 100 users per month'),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('pre-selects the Association Status dropdown with the current status', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: /association status/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('combobox', { name: /association status/i })).toHaveValue('active');
+  });
+});
+
+describe('PlanApplicationsView — edit happy path (AC 3)', () => {
+  it('on save: closes modal, updates row in grid, shows success toast', async () => {
+    const user = userEvent.setup();
+    const updatedPA: PlanApplication = {
+      id: 1,
+      subscriptionPlan: { id: 3, name: 'Gold Plan' },
+      application: { id: 5, name: 'POS Core', category: 'Point of Sale' },
+      limits: 'Updated limit',
+      status: 'inactive',
+    };
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    vi.mocked(saasService.updatePlanApplication).mockResolvedValue(updatedPA);
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Basic usage limit: 100 users per month'),
+      ).toBeInTheDocument(),
+    );
+
+    await user.clear(screen.getByDisplayValue('Basic usage limit: 100 users per month'));
+    await user.type(
+      screen.getByPlaceholderText(/Up to 5 terminals/i),
+      'Updated limit',
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: /association status/i }),
+      'inactive',
+    );
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+      expect(screen.getByText('Plan-application updated successfully')).toBeInTheDocument();
+      expect(screen.getByText('Updated limit')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('PlanApplicationsView — edit error path', () => {
+  it('on API error: closes modal and shows error toast', async () => {
+    const user = userEvent.setup();
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+    vi.mocked(saasService.updatePlanApplication).mockRejectedValue(
+      new Error('Update failed'),
+    );
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Basic usage limit: 100 users per month'),
+      ).toBeInTheDocument(),
+    );
+
+    await user.clear(screen.getByDisplayValue('Basic usage limit: 100 users per month'));
+    await user.type(
+      screen.getByPlaceholderText(/Up to 5 terminals/i),
+      'Different limit',
+    );
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+      expect(screen.getByText('Update failed')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('PlanApplicationsView — edit submit disabled', () => {
+  beforeEach(() => {
+    vi.mocked(saasService.getPlanApplications).mockResolvedValue(MOCK_PLAN_APPS);
+  });
+
+  it('SAVE CHANGES is disabled when limits field is cleared', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Basic usage limit: 100 users per month'),
+      ).toBeInTheDocument(),
+    );
+
+    await user.clear(screen.getByDisplayValue('Basic usage limit: 100 users per month'));
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
+  });
+
+  it('SAVE CHANGES is disabled when no changes have been made', async () => {
+    const user = userEvent.setup();
+    render(<PlanApplicationsView plan={MOCK_PLAN} />);
+    await waitFor(() => expect(screen.getByText('POS Core')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /edit pos core/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Basic usage limit: 100 users per month'),
+      ).toBeInTheDocument(),
+    );
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
   });
 });
