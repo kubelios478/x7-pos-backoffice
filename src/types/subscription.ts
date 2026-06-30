@@ -30,6 +30,11 @@ export interface CreatePlanApplicationDto {
   status: 'active';
 }
 
+export interface UpdatePlanApplicationDto {
+  limits: string;
+  status: 'active' | 'inactive';
+}
+
 export interface Application {
   id: number;
   name: string;
