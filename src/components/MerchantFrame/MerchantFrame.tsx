@@ -499,7 +499,10 @@ export const MerchantFrame: React.FC = () => {
         <JournalEntryLinesView
           entry={linesEntryFilter}
           onClearEntry={() => setLinesEntryFilter(null)}
-          onNavigate={(view) => setActiveTab(view)}
+          onNavigate={(view) => {
+            setLinesEntryFilter(null);
+            setActiveTab(view);
+          }}
         />
       );
     }

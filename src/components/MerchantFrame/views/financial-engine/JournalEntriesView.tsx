@@ -219,7 +219,7 @@ const ConfirmJournalActionDialog: React.FC<ConfirmJournalActionDialogProps> = ({
   onCancel,
 }) => {
   const copy = ACTION_COPY[action];
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 z-[10000] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md shadow-2xl">
         <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
@@ -250,7 +250,8 @@ const ConfirmJournalActionDialog: React.FC<ConfirmJournalActionDialogProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -975,21 +976,23 @@ export const JournalEntriesView: React.FC<JournalEntriesViewProps> = ({ onNaviga
         />
       )}
 
-      {toast && (
-        <div
-          className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 shadow-lg text-white text-sm font-medium ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">
-            {toast.type === 'success' ? 'check_circle' : 'error'}
-          </span>
-          {toast.message}
-          <button type="button" onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity">
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
-        </div>
-      )}
+      {toast &&
+        createPortal(
+          <div
+            className={`fixed top-6 right-6 z-[10001] flex items-center gap-3 px-5 py-3.5 shadow-lg text-white text-sm font-medium ${
+              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">
+              {toast.type === 'success' ? 'check_circle' : 'error'}
+            </span>
+            {toast.message}
+            <button type="button" onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity">
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };
