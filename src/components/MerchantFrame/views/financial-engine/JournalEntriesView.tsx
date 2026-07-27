@@ -54,7 +54,7 @@ interface JournalEntryDetailDrawerProps {
 }
 
 const JournalEntryDetailDrawer: React.FC<JournalEntryDetailDrawerProps> = ({ entry, onClose, onEdit, onRequestAction, onViewLines }) => {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex justify-end font-sans">
       <div
         data-testid="drawer-backdrop"
@@ -175,7 +175,8 @@ const JournalEntryDetailDrawer: React.FC<JournalEntryDetailDrawerProps> = ({ ent
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
