@@ -607,7 +607,13 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
           <button
             type="button"
             onClick={openCreateDrawer}
-            className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+            disabled={scopedEntry != null && scopedEntry.status !== 'DRAFT'}
+            title={
+              scopedEntry != null && scopedEntry.status !== 'DRAFT'
+                ? 'This journal entry is POSTED — line items are locked.'
+                : undefined
+            }
+            className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             <span className="material-symbols-outlined text-base">add</span>
             Add Line Item
@@ -763,7 +769,7 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
       {formDrawer && (
         <JournalEntryLineFormDrawer
           mode={formDrawer.mode}
-          lockedEntry={formDrawer.mode === 'edit' ? formDrawer.item.entry : null}
+          lockedEntry={formDrawer.mode === 'edit' ? formDrawer.item.entry : scopedEntry}
           draftEntries={draftEntries}
           initialLine={formDrawer.mode === 'edit' ? formDrawer.item.line : undefined}
           leafAccounts={leafAccounts}

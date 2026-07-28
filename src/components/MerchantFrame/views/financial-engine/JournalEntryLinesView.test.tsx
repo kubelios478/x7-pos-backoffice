@@ -415,4 +415,23 @@ describe('JournalEntryLinesView — create line', () => {
     expect(await screen.findByText(/journal entry line created successfully/i)).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /add line item/i })).not.toBeInTheDocument();
   });
+
+  it('pre-fills and locks the Journal Entry field when arriving scoped to a DRAFT entry', async () => {
+    mockFetch([draftEntry]);
+    render(<JournalEntryLinesView entry={draftEntry} />);
+    await screen.findByRole('button', { name: /add line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+
+    expect(screen.getByTestId('line-form-locked-entry')).toHaveTextContent('JE-2024-0003');
+    expect(screen.queryByLabelText(/^journal entry$/i)).not.toBeInTheDocument();
+  });
+
+  it('disables Add Line Item when the scoped entry is not DRAFT', async () => {
+    mockFetch([entryA]);
+    render(<JournalEntryLinesView entry={entryA} />);
+    await screen.findByText('2 lines');
+
+    expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
+  });
 });
