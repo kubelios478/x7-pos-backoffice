@@ -23,6 +23,96 @@ export function isLeafAccount(account: LedgerAccount, accounts: LedgerAccount[])
   return !accounts.some((a) => a.parent_account_id === account.id && a.is_active);
 }
 
+interface SearchComboboxProps<T> {
+  ariaLabel: string;
+  listboxAriaLabel: string;
+  placeholder: string;
+  emptyMessage: string;
+  query: string;
+  options: T[];
+  getOptionKey: (option: T) => number;
+  getOptionLabel: (option: T) => string;
+  onQueryChange: (value: string) => void;
+  onSelect: (option: T) => void;
+}
+
+// Shared searchable-combobox idiom: text input with role="combobox" + a role="listbox"
+// dropdown, onMouseDown selection, and a blur-timeout so the mousedown registers before
+// the listbox closes. Used by both the Journal Entry and Ledger Account fields below.
+function SearchCombobox<T>({
+  ariaLabel,
+  listboxAriaLabel,
+  placeholder,
+  emptyMessage,
+  query,
+  options,
+  getOptionKey,
+  getOptionLabel,
+  onQueryChange,
+  onSelect,
+}: SearchComboboxProps<T>) {
+  const [isOpen, setIsOpen] = useState(false);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBlurTimeout = () => {
+    if (blurTimeoutRef.current != null) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+  };
+
+  const handleSelect = (option: T) => {
+    clearBlurTimeout();
+    onSelect(option);
+    setIsOpen(false);
+  };
+
+  return (
+    <>
+      <input
+        type="text"
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        autoComplete="off"
+        value={query}
+        onFocus={() => {
+          clearBlurTimeout();
+          setIsOpen(true);
+        }}
+        onChange={(e) => onQueryChange(e.target.value)}
+        onBlur={() => {
+          blurTimeoutRef.current = setTimeout(() => setIsOpen(false), 100);
+        }}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+      />
+      {isOpen && (
+        <ul
+          role="listbox"
+          aria-label={listboxAriaLabel}
+          className="absolute top-full mt-1 left-0 right-0 bg-white border border-[#e8e2d8] rounded shadow-lg max-h-40 overflow-y-auto z-10"
+        >
+          {options.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-[#5f5e5e]">{emptyMessage}</li>
+          ) : (
+            options.map((option) => (
+              <li
+                key={getOptionKey(option)}
+                role="option"
+                onMouseDown={() => handleSelect(option)}
+                className="px-3 py-2 text-sm hover:bg-[#f8f3eb] cursor-pointer"
+              >
+                {getOptionLabel(option)}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </>
+  );
+}
+
 interface JournalEntryLineFormDrawerProps {
   mode: 'create' | 'edit';
   lockedEntry?: JournalEntry | null;
@@ -48,33 +138,16 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
 }) => {
   const [entryId, setEntryId] = useState<number | null>(lockedEntry?.id ?? null);
   const [entryQuery, setEntryQuery] = useState('');
-  const [entryListOpen, setEntryListOpen] = useState(false);
-  const entryBlurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [accountId, setAccountId] = useState<number | null>(initialLine?.account?.id ?? null);
   const [accountQuery, setAccountQuery] = useState(
     initialLine?.account ? `${initialLine.account.code} — ${initialLine.account.name}` : '',
   );
-  const [accountListOpen, setAccountListOpen] = useState(false);
-  const accountBlurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [debit, setDebit] = useState(initialLine && initialLine.debit > 0 ? String(initialLine.debit) : '');
   const [credit, setCredit] = useState(initialLine && initialLine.credit > 0 ? String(initialLine.credit) : '');
   const [description, setDescription] = useState(initialLine?.description ?? '');
   const [touched, setTouched] = useState(false);
-
-  const clearEntryBlur = () => {
-    if (entryBlurTimeoutRef.current != null) {
-      clearTimeout(entryBlurTimeoutRef.current);
-      entryBlurTimeoutRef.current = null;
-    }
-  };
-  const clearAccountBlur = () => {
-    if (accountBlurTimeoutRef.current != null) {
-      clearTimeout(accountBlurTimeoutRef.current);
-      accountBlurTimeoutRef.current = null;
-    }
-  };
 
   const filteredEntries = draftEntries.filter((e) => {
     const term = entryQuery.trim().toLowerCase();
@@ -85,20 +158,6 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
     const term = accountQuery.trim().toLowerCase();
     return !term || a.code.toLowerCase().includes(term) || a.name.toLowerCase().includes(term);
   });
-
-  const selectEntry = (entry: JournalEntry) => {
-    clearEntryBlur();
-    setEntryId(entry.id);
-    setEntryQuery(entry.entry_number);
-    setEntryListOpen(false);
-  };
-
-  const selectAccount = (account: LedgerAccount) => {
-    clearAccountBlur();
-    setAccountId(account.id);
-    setAccountQuery(`${account.code} — ${account.name}`);
-    setAccountListOpen(false);
-  };
 
   const handleDebitChange = (value: string) => {
     setDebit(value);
@@ -166,51 +225,24 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
                   {lockedEntry.entry_number}
                 </p>
               ) : (
-                <>
-                  <input
-                    type="text"
-                    role="combobox"
-                    aria-expanded={entryListOpen}
-                    aria-label="Journal entry"
-                    autoComplete="off"
-                    value={entryQuery}
-                    onFocus={() => {
-                      clearEntryBlur();
-                      setEntryListOpen(true);
-                    }}
-                    onChange={(e) => {
-                      setEntryQuery(e.target.value);
-                      setEntryId(null);
-                    }}
-                    onBlur={() => {
-                      entryBlurTimeoutRef.current = setTimeout(() => setEntryListOpen(false), 100);
-                    }}
-                    placeholder="Search DRAFT journal entries..."
-                    className="w-full px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
-                  />
-                  {entryListOpen && (
-                    <ul
-                      role="listbox"
-                      aria-label="Journal entry options"
-                      className="absolute top-full mt-1 left-0 right-0 bg-white border border-[#e8e2d8] rounded shadow-lg max-h-40 overflow-y-auto z-10"
-                    >
-                      {filteredEntries.length === 0 ? (
-                        <li className="px-3 py-2 text-sm text-[#5f5e5e]">No DRAFT journal entries found</li>
-                      ) : (
-                        filteredEntries.map((entry) => (
-                          <li
-                            key={entry.id}
-                            role="option"
-                            onMouseDown={() => selectEntry(entry)}
-                            className="px-3 py-2 text-sm hover:bg-[#f8f3eb] cursor-pointer"
-                          >
-                            {entry.entry_number}
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  )}
-                </>
+                <SearchCombobox<JournalEntry>
+                  ariaLabel="Journal entry"
+                  listboxAriaLabel="Journal entry options"
+                  placeholder="Search DRAFT journal entries..."
+                  emptyMessage="No DRAFT journal entries found"
+                  query={entryQuery}
+                  options={filteredEntries}
+                  getOptionKey={(e) => e.id}
+                  getOptionLabel={(e) => e.entry_number}
+                  onQueryChange={(value) => {
+                    setEntryQuery(value);
+                    setEntryId(null);
+                  }}
+                  onSelect={(entry) => {
+                    setEntryId(entry.id);
+                    setEntryQuery(entry.entry_number);
+                  }}
+                />
               )}
               {touched && entryId == null && (
                 <p className="text-xs text-red-600 font-medium">A journal entry must be selected.</p>
@@ -218,49 +250,24 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
             </div>
             <div className="flex flex-col gap-1.5 relative">
               <label className="text-[11px] font-bold text-[#5f5e5e] uppercase">Ledger Account</label>
-              <input
-                type="text"
-                role="combobox"
-                aria-expanded={accountListOpen}
-                aria-label="Ledger account"
-                autoComplete="off"
-                value={accountQuery}
-                onFocus={() => {
-                  clearAccountBlur();
-                  setAccountListOpen(true);
-                }}
-                onChange={(e) => {
-                  setAccountQuery(e.target.value);
+              <SearchCombobox<LedgerAccount>
+                ariaLabel="Ledger account"
+                listboxAriaLabel="Account options"
+                placeholder="Search leaf accounts..."
+                emptyMessage="No matching leaf accounts"
+                query={accountQuery}
+                options={filteredAccounts}
+                getOptionKey={(a) => a.id}
+                getOptionLabel={(a) => `${a.code} — ${a.name}`}
+                onQueryChange={(value) => {
+                  setAccountQuery(value);
                   setAccountId(null);
                 }}
-                onBlur={() => {
-                  accountBlurTimeoutRef.current = setTimeout(() => setAccountListOpen(false), 100);
+                onSelect={(account) => {
+                  setAccountId(account.id);
+                  setAccountQuery(`${account.code} — ${account.name}`);
                 }}
-                placeholder="Search leaf accounts..."
-                className="w-full px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
               />
-              {accountListOpen && (
-                <ul
-                  role="listbox"
-                  aria-label="Account options"
-                  className="absolute top-full mt-1 left-0 right-0 bg-white border border-[#e8e2d8] rounded shadow-lg max-h-40 overflow-y-auto z-10"
-                >
-                  {filteredAccounts.length === 0 ? (
-                    <li className="px-3 py-2 text-sm text-[#5f5e5e]">No matching leaf accounts</li>
-                  ) : (
-                    filteredAccounts.map((a) => (
-                      <li
-                        key={a.id}
-                        role="option"
-                        onMouseDown={() => selectAccount(a)}
-                        className="px-3 py-2 text-sm hover:bg-[#f8f3eb] cursor-pointer"
-                      >
-                        {a.code} — {a.name}
-                      </li>
-                    ))
-                  )}
-                </ul>
-              )}
               {touched && isNonLeafSelected && (
                 <p className="text-xs text-red-600 font-medium">
                   Cannot post transactions directly to summary accounts. Please select a detailed leaf account.
@@ -329,7 +336,7 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!isValid || submitting}
+              disabled={submitting}
               className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
             >
               {submitting ? 'Saving…' : 'Save Line Item'}

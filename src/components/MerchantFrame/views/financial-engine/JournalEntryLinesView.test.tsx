@@ -364,7 +364,7 @@ describe('JournalEntryLinesView — create line', () => {
     expect(screen.getByLabelText(/^credit$/i)).toHaveValue(0);
   });
 
-  it('blocks submit when both debit and credit are zero', async () => {
+  it('blocks submit when both debit and credit are zero, and shows the exact validation message on a real submit attempt', async () => {
     mockFetch([draftEntry]);
     render(<JournalEntryLinesView />);
     await screen.findByRole('button', { name: /add line item/i });
@@ -375,7 +375,13 @@ describe('JournalEntryLinesView — create line', () => {
     await userEvent.click(screen.getByLabelText(/ledger account/i));
     await userEvent.click((await screen.findAllByRole('option'))[0]);
 
-    expect(screen.getByRole('button', { name: /save line item/i })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /save line item/i }));
+
+    expect(
+      screen.getByText('A line item must have either a Debit or Credit amount greater than zero.'),
+    ).toBeInTheDocument();
+    // still open — the blocked submit never called onSubmit/POST
+    expect(screen.getByRole('dialog', { name: /add line item/i })).toBeInTheDocument();
   });
 
   it('submits a POST to the nested endpoint and refetches on success', async () => {
