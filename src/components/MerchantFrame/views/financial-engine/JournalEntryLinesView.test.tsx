@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { JournalEntryLinesView, flattenJournalEntryLines } from './JournalEntryLinesView';
+import { JournalEntryLinesView, flattenJournalEntryLines, isLeafAccount } from './JournalEntryLinesView';
 import type { JournalEntry, LedgerAccount } from '../../../../types/accounting';
 
 vi.mock('../../../../lib/auth-storage', () => ({
@@ -91,6 +91,20 @@ describe('flattenJournalEntryLines', () => {
     expect(flattened.map((f) => f.key)).toEqual(['1-1', '1-2', '2-3']);
     expect(flattened[0].entry).toBe(entryA);
     expect(flattened[0].line).toBe(entryA.lines[0]);
+  });
+});
+
+describe('isLeafAccount', () => {
+  it('returns true when no other account references it as a parent', () => {
+    const parent: LedgerAccount = { id: 1, code: '1000', name: 'Assets', type: 'ASSET', is_active: true, parent_account_id: null };
+    const leaf: LedgerAccount = { id: 2, code: '1010', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: 1 };
+    expect(isLeafAccount(leaf, [parent, leaf])).toBe(true);
+  });
+
+  it('returns false when another account has it as parent_account_id', () => {
+    const parent: LedgerAccount = { id: 1, code: '1000', name: 'Assets', type: 'ASSET', is_active: true, parent_account_id: null };
+    const leaf: LedgerAccount = { id: 2, code: '1010', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: 1 };
+    expect(isLeafAccount(parent, [parent, leaf])).toBe(false);
   });
 });
 

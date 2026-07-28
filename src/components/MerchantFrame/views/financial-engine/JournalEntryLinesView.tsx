@@ -18,6 +18,10 @@ export function flattenJournalEntryLines(entries: JournalEntry[]): FlattenedJour
   );
 }
 
+export function isLeafAccount(account: LedgerAccount, accounts: LedgerAccount[]): boolean {
+  return !accounts.some((a) => a.parent_account_id === account.id);
+}
+
 type PostingTypeFilter = '' | 'DEBIT' | 'CREDIT';
 
 interface JournalEntryLinesViewProps {
