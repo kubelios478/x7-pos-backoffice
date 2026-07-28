@@ -442,6 +442,52 @@ describe('JournalEntryLinesView — create line', () => {
   });
 });
 
+describe('JournalEntryLinesView — edit line', () => {
+  it('opens the Edit drawer pre-filled, with Journal Entry shown as a static label', async () => {
+    mockFetch([draftEntryWithLine]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-3-5'));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+
+    expect(screen.getByRole('dialog', { name: /edit line item/i })).toBeInTheDocument();
+    expect(screen.getByTestId('line-form-locked-entry')).toHaveTextContent('JE-2024-0003');
+    expect(screen.getByLabelText(/^debit$/i)).toHaveValue(50);
+    expect(screen.queryByRole('dialog', { name: /journal entry line details/i })).not.toBeInTheDocument();
+  });
+
+  it('submits a PATCH to the nested endpoint and refetches on success', async () => {
+    const cash: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
+    let patchBody: unknown = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/ledger-accounts')) {
+          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [cash], page: 1, limit: 100, total: 1, totalPages: 1 }) });
+        }
+        if (url.endsWith('/journal-entries/3/lines/5') && init?.method === 'PATCH') {
+          patchBody = JSON.parse(init.body as string);
+          return Promise.resolve({ status: 201, ok: true, json: async () => ({ statusCode: 201, message: 'ok', data: { id: 5, account: cash, debit: 75, credit: 0, description: 'Adjustment' } }) });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [draftEntryWithLine], page: 1, limit: 100, total: 1, totalPages: 1, hasNext: false, hasPrev: false }) });
+      }),
+    );
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-3-5'));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const debitInput = screen.getByLabelText(/^debit$/i);
+    await userEvent.clear(debitInput);
+    await userEvent.type(debitInput, '75');
+    await userEvent.click(screen.getByRole('button', { name: /save line item/i }));
+
+    await waitFor(() => expect(patchBody).toEqual({ account_id: 1, debit: 75, credit: 0, description: 'Adjustment' }));
+    expect(await screen.findByText(/journal entry line updated successfully/i)).toBeInTheDocument();
+  });
+});
+
 describe('JournalEntryLinesView — detail drawer', () => {
   it('opens on row click and shows line, account type, and parent entry header', async () => {
     mockFetch([entryA]);

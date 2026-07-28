@@ -594,6 +594,12 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
     setFormDrawer({ mode: 'create' });
   };
 
+  const openEditDrawer = (item: FlattenedJournalEntryLine) => {
+    setFormError(null);
+    setFormDrawer({ mode: 'edit', item });
+    setDetailItem(null);
+  };
+
   const closeFormDrawer = () => {
     setFormDrawer(null);
     setFormError(null);
@@ -901,7 +907,7 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
           item={detailItem}
           accountsById={accountsById}
           onClose={() => setDetailItem(null)}
-          onEdit={() => {}}
+          onEdit={() => openEditDrawer(detailItem)}
           onDelete={() => {}}
         />
       )}
