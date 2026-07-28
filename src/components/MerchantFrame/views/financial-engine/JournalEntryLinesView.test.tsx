@@ -46,6 +46,15 @@ const entryB: JournalEntry = {
   lines: [{ id: 3, account: { id: 3, code: '4000', name: 'Sales Revenue' }, debit: 0, credit: 200, description: null }],
 };
 
+const draftEntry: JournalEntry = {
+  ...entryA,
+  id: 3,
+  entry_number: 'JE-2024-0003',
+  status: 'DRAFT',
+  description: 'Draft adjustment',
+  lines: [],
+};
+
 const cashAccount: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
 const payrollAccount: LedgerAccount = { id: 2, code: '5000', name: 'Payroll Expense', type: 'EXPENSE', is_active: true, parent_account_id: null };
 const revenueAccount: LedgerAccount = { id: 3, code: '4000', name: 'Sales Revenue', type: 'REVENUE', is_active: true, parent_account_id: null };
@@ -250,7 +259,7 @@ describe('JournalEntryLinesView — filters', () => {
     render(<JournalEntryLinesView />);
     await screen.findByText('3 lines');
 
-    await userEvent.selectOptions(screen.getByLabelText(/filter by ledger account/i), '3');
+    await userEvent.selectOptions(screen.getByLabelText(/filter by account/i), '3');
 
     expect(screen.queryByTestId('journal-entry-line-row-1-1')).not.toBeInTheDocument();
     expect(screen.getByTestId('journal-entry-line-row-2-3')).toBeInTheDocument();
@@ -310,5 +319,94 @@ describe('JournalEntryLinesView — navigation', () => {
 
     const activeAnchor = screen.getByText('JOURNAL LINE ITEMS').closest('span');
     expect(activeAnchor).toHaveAttribute('aria-current', 'page');
+  });
+});
+
+describe('JournalEntryLinesView — create line', () => {
+  it('opens the Add Line Item drawer and lists only DRAFT entries in the combobox', async () => {
+    mockFetch([entryA, entryB, draftEntry]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('3 lines');
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+
+    expect(screen.getByRole('dialog', { name: /add line item/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText(/journal entry/i));
+
+    expect(screen.getByRole('option', { name: 'JE-2024-0003' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'JE-2024-0001' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'JE-2024-0002' })).not.toBeInTheDocument();
+  });
+
+  it('lists only leaf accounts in the ledger account combobox', async () => {
+    const parentAccount: LedgerAccount = { id: 10, code: '1000', name: 'Current Assets', type: 'ASSET', is_active: true, parent_account_id: null };
+    const childAccount: LedgerAccount = { id: 11, code: '1010', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: 10 };
+    mockFetch([draftEntry], [parentAccount, childAccount]);
+    render(<JournalEntryLinesView />);
+    await screen.findByRole('button', { name: /add line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.click(screen.getByLabelText(/ledger account/i));
+
+    expect(screen.getByRole('option', { name: /1010 — Cash/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /1000 — Current Assets/i })).not.toBeInTheDocument();
+  });
+
+  it('mutual exclusion: entering a debit value zeroes and disables credit', async () => {
+    mockFetch([draftEntry]);
+    render(<JournalEntryLinesView />);
+    await screen.findByRole('button', { name: /add line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.type(screen.getByLabelText(/^debit$/i), '100');
+
+    expect(screen.getByLabelText(/^credit$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^credit$/i)).toHaveValue(0);
+  });
+
+  it('blocks submit when both debit and credit are zero', async () => {
+    mockFetch([draftEntry]);
+    render(<JournalEntryLinesView />);
+    await screen.findByRole('button', { name: /add line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.click(screen.getByLabelText(/journal entry/i));
+    await userEvent.click(screen.getByRole('option', { name: 'JE-2024-0003' }));
+    await userEvent.click(screen.getByLabelText(/ledger account/i));
+    await userEvent.click((await screen.findAllByRole('option'))[0]);
+
+    expect(screen.getByRole('button', { name: /save line item/i })).toBeDisabled();
+  });
+
+  it('submits a POST to the nested endpoint and refetches on success', async () => {
+    const cash: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
+    let postBody: unknown = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/ledger-accounts')) {
+          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [cash], page: 1, limit: 100, total: 1, totalPages: 1 }) });
+        }
+        if (url.endsWith('/journal-entries/3/lines') && init?.method === 'POST') {
+          postBody = JSON.parse(init.body as string);
+          return Promise.resolve({ status: 201, ok: true, json: async () => ({ statusCode: 201, message: 'ok', data: { id: 99, account: cash, debit: 100, credit: 0, description: null } }) });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [draftEntry], page: 1, limit: 100, total: 1, totalPages: 1, hasNext: false, hasPrev: false }) });
+      }),
+    );
+    render(<JournalEntryLinesView />);
+    await screen.findByRole('button', { name: /add line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.click(screen.getByLabelText(/journal entry/i));
+    await userEvent.click(screen.getByRole('option', { name: 'JE-2024-0003' }));
+    await userEvent.click(screen.getByLabelText(/ledger account/i));
+    await userEvent.click(screen.getByRole('option', { name: /1000 — Cash/i }));
+    await userEvent.type(screen.getByLabelText(/^debit$/i), '100');
+    await userEvent.click(screen.getByRole('button', { name: /save line item/i }));
+
+    await waitFor(() => expect(postBody).toEqual({ account_id: 1, debit: 100, credit: 0 }));
+    expect(await screen.findByText(/journal entry line created successfully/i)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /add line item/i })).not.toBeInTheDocument();
   });
 });
