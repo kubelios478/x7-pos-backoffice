@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
 import type { CreateJournalEntryLineDto, JournalEntry, JournalEntryLine, LedgerAccount } from '../../../../types/accounting';
-import { formatCurrency, formatEntryDate } from './JournalEntriesView';
+import { formatCurrency, formatEntryDate, STATUS_BADGE_CLASSES } from './JournalEntriesView';
 import { LedgerQuickLinks } from './LedgerQuickLinks';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
@@ -349,6 +349,116 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
   );
 };
 
+interface JournalEntryLineDetailDrawerProps {
+  item: FlattenedJournalEntryLine;
+  accountsById: Map<number, LedgerAccount>;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+const JournalEntryLineDetailDrawer: React.FC<JournalEntryLineDetailDrawerProps> = ({
+  item,
+  accountsById,
+  onClose,
+  onEdit,
+  onDelete,
+}) => {
+  const { line, entry } = item;
+  const accountType = line.account ? accountsById.get(line.account.id)?.type : undefined;
+  const isEditable = entry.status === 'DRAFT';
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex justify-end font-sans">
+      <div
+        data-testid="drawer-backdrop"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-label="Journal Entry Line Details"
+        className="relative bg-white border-l border-[#e8e2d8] shadow-2xl w-full max-w-md h-full overflow-hidden animate-slide-in text-left flex flex-col"
+      >
+        <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
+          <span className="font-bold text-[11px] uppercase tracking-widest">Journal Entry Line Details</span>
+          <div className="flex items-center gap-3">
+            {isEditable && (
+              <>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="text-white/70 hover:text-white transition-colors text-[11px] font-bold uppercase tracking-widest"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="text-white/70 hover:text-red-400 transition-colors text-[11px] font-bold uppercase tracking-widest"
+                >
+                  Delete
+                </button>
+              </>
+            )}
+            <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+        <div className="p-6 space-y-4 overflow-y-auto flex-1 text-sm">
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Ledger Account</p>
+            <p className="font-bold text-[#1d1c17]">
+              {line.account ? `${line.account.code} — ${line.account.name}` : '—'}
+            </p>
+            {accountType && <p className="text-xs text-[#5f5e5e]">{accountType}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Debit</p>
+              <p>{formatCurrency(line.debit)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Credit</p>
+              <p>{formatCurrency(line.credit)}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Description</p>
+            <p>{line.description || '—'}</p>
+          </div>
+          <div className="pt-2 border-t border-[#e8e2d8] space-y-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Parent Journal Entry</p>
+              <p className="font-bold text-[#1d1c17]">{entry.entry_number}</p>
+              <p className="text-xs text-[#5f5e5e]">{formatEntryDate(entry.entry_date)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Status</p>
+              <span
+                className={`inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded ${STATUS_BADGE_CLASSES[entry.status]}`}
+              >
+                {entry.status}
+              </span>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Entry Description</p>
+              <p>{entry.description || '—'}</p>
+            </div>
+          </div>
+          {!isEditable && (
+            <p data-testid="line-locked-note" className="text-xs text-[#5f5e5e] italic pt-2">
+              This journal entry is POSTED — line items are locked.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
 type PostingTypeFilter = '' | 'DEBIT' | 'CREDIT';
 
 interface JournalEntryLinesViewProps {
@@ -374,6 +484,7 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [detailItem, setDetailItem] = useState<FlattenedJournalEntryLine | null>(null);
 
   const fetchJournalEntries = async () => {
     setLoading(true);
@@ -440,6 +551,7 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
     () => ledgerAccounts.filter((a) => isLeafAccount(a, ledgerAccounts)),
     [ledgerAccounts],
   );
+  const accountsById = useMemo(() => new Map(ledgerAccounts.map((a) => [a.id, a])), [ledgerAccounts]);
 
   const matchesFilters = (item: FlattenedJournalEntryLine): boolean => {
     const term = searchQuery.trim().toLowerCase();
@@ -715,12 +827,16 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
                     <tr
                       key={item.key}
                       data-testid={`journal-entry-line-row-${item.key}`}
-                      className="hover:bg-[#f8f3eb] transition-colors"
+                      onClick={() => setDetailItem(item)}
+                      className="hover:bg-[#f8f3eb] transition-colors cursor-pointer"
                     >
                       <td className="px-6 py-4">
                         <button
                           type="button"
-                          onClick={() => onNavigate?.('journal-entries')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigate?.('journal-entries');
+                          }}
                           className="text-left hover:underline"
                         >
                           <span className="font-bold text-[#1d1c17]">{item.entry.entry_number}</span>
@@ -777,6 +893,16 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
           submitError={formError}
           onCancel={closeFormDrawer}
           onSubmit={handleFormSubmit}
+        />
+      )}
+
+      {detailItem && (
+        <JournalEntryLineDetailDrawer
+          item={detailItem}
+          accountsById={accountsById}
+          onClose={() => setDetailItem(null)}
+          onEdit={() => {}}
+          onDelete={() => {}}
         />
       )}
 

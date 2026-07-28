@@ -55,6 +55,12 @@ const draftEntry: JournalEntry = {
   lines: [],
 };
 
+const draftEntryWithLine: JournalEntry = {
+  ...draftEntry,
+  id: 3,
+  lines: [{ id: 5, account: { id: 1, code: '1000', name: 'Cash' }, debit: 50, credit: 0, description: 'Adjustment' }],
+};
+
 const cashAccount: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
 const payrollAccount: LedgerAccount = { id: 2, code: '5000', name: 'Payroll Expense', type: 'EXPENSE', is_active: true, parent_account_id: null };
 const revenueAccount: LedgerAccount = { id: 3, code: '4000', name: 'Sales Revenue', type: 'REVENUE', is_active: true, parent_account_id: null };
@@ -433,5 +439,59 @@ describe('JournalEntryLinesView — create line', () => {
     await screen.findByText('2 lines');
 
     expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
+  });
+});
+
+describe('JournalEntryLinesView — detail drawer', () => {
+  it('opens on row click and shows line, account type, and parent entry header', async () => {
+    mockFetch([entryA]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('2 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-1-1'));
+
+    const dialog = screen.getByRole('dialog', { name: /journal entry line details/i });
+    expect(within(dialog).getByText('1000 — Cash')).toBeInTheDocument();
+    expect(within(dialog).getByText('ASSET')).toBeInTheDocument();
+    expect(within(dialog).getByText('JE-2024-0001')).toBeInTheDocument();
+    expect(within(dialog).getByText('POSTED')).toBeInTheDocument();
+  });
+
+  it('shows Edit and Delete actions when the parent entry is DRAFT', async () => {
+    mockFetch([draftEntryWithLine]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId(`journal-entry-line-row-3-5`));
+
+    const dialog = screen.getByRole('dialog', { name: /journal entry line details/i });
+    expect(within(dialog).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^delete$/i })).toBeInTheDocument();
+  });
+
+  it('hides actions and shows a locked note when the parent entry is POSTED', async () => {
+    mockFetch([entryA]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('2 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-1-1'));
+
+    const dialog = screen.getByRole('dialog', { name: /journal entry line details/i });
+    expect(within(dialog).queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/this journal entry is posted — line items are locked/i)).toBeInTheDocument();
+  });
+
+  it('the parent-entry navigation link inside the row does not also open the detail drawer', async () => {
+    const onNavigate = vi.fn();
+    mockFetch([entryA]);
+    render(<JournalEntryLinesView onNavigate={onNavigate} />);
+    await screen.findByText('2 lines');
+
+    // entryA has 2 lines, so its entry number renders once per row; either link should behave the same.
+    await userEvent.click(screen.getAllByText('JE-2024-0001')[0]);
+
+    expect(onNavigate).toHaveBeenCalledWith('journal-entries');
+    expect(screen.queryByRole('dialog', { name: /journal entry line details/i })).not.toBeInTheDocument();
   });
 });
