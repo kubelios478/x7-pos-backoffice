@@ -541,3 +541,75 @@ describe('JournalEntryLinesView — detail drawer', () => {
     expect(screen.queryByRole('dialog', { name: /journal entry line details/i })).not.toBeInTheDocument();
   });
 });
+
+describe('JournalEntryLinesView — delete line', () => {
+  it('hides the delete icon on rows whose parent entry is not DRAFT', async () => {
+    mockFetch([entryA]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('2 lines');
+
+    expect(within(screen.getByTestId('journal-entry-line-row-1-1')).queryByLabelText(/delete line/i)).not.toBeInTheDocument();
+  });
+
+  it('clicking the row delete icon opens a confirmation modal; cancel makes no request', async () => {
+    mockFetch([draftEntryWithLine]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+    (fetch as any).mockClear();
+
+    await userEvent.click(within(screen.getByTestId('journal-entry-line-row-3-5')).getByLabelText(/delete line/i));
+    expect(screen.getByText(/delete line item/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(screen.queryByText(/delete line item/i)).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('confirming issues DELETE to the nested endpoint, refetches, and shows a success toast', async () => {
+    let deleteCalled = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/ledger-accounts')) {
+          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [], page: 1, limit: 100, total: 0, totalPages: 1 }) });
+        }
+        if (url.endsWith('/journal-entries/3/lines/5') && init?.method === 'DELETE') {
+          deleteCalled = true;
+          return Promise.resolve({ status: 201, ok: true, json: async () => ({ statusCode: 201, message: 'ok', data: {} }) });
+        }
+        return Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () => ({
+            data: deleteCalled ? [{ ...draftEntryWithLine, lines: [] }] : [draftEntryWithLine],
+            page: 1,
+            limit: 100,
+            total: 1,
+            totalPages: 1,
+            hasNext: false,
+            hasPrev: false,
+          }),
+        });
+      }),
+    );
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(within(screen.getByTestId('journal-entry-line-row-3-5')).getByLabelText(/delete line/i));
+    await userEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
+
+    expect(await screen.findByText(/journal entry line deleted successfully/i)).toBeInTheDocument();
+    expect(deleteCalled).toBe(true);
+  });
+
+  it('is also reachable from the Detail Drawer when the parent entry is DRAFT', async () => {
+    mockFetch([draftEntryWithLine]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-3-5'));
+    await userEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    expect(screen.getByText(/delete line item/i)).toBeInTheDocument();
+  });
+});
