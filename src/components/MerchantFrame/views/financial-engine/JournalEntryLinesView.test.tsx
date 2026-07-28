@@ -106,6 +106,12 @@ describe('isLeafAccount', () => {
     const leaf: LedgerAccount = { id: 2, code: '1010', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: 1 };
     expect(isLeafAccount(parent, [parent, leaf])).toBe(false);
   });
+
+  it('returns true when the only referencing account is inactive', () => {
+    const parent: LedgerAccount = { id: 1, code: '1000', name: 'Assets', type: 'ASSET', is_active: true, parent_account_id: null };
+    const inactiveChild: LedgerAccount = { id: 2, code: '1010', name: 'Cash', type: 'ASSET', is_active: false, parent_account_id: 1 };
+    expect(isLeafAccount(parent, [parent, inactiveChild])).toBe(true);
+  });
 });
 
 describe('JournalEntryLinesView — data fetch', () => {
