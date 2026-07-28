@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
-import type { CreateJournalEntryLineDto, JournalEntry, JournalEntryLine, LedgerAccount } from '../../../../types/accounting';
+import type {
+  CreateJournalEntryLineDto,
+  JournalEntry,
+  JournalEntryLine,
+  LedgerAccount,
+  UpdateJournalEntryLineDto,
+} from '../../../../types/accounting';
 import { formatCurrency, formatEntryDate, STATUS_BADGE_CLASSES } from './JournalEntriesView';
 import { LedgerQuickLinks } from './LedgerQuickLinks';
 
@@ -122,7 +128,7 @@ interface JournalEntryLineFormDrawerProps {
   submitting: boolean;
   submitError: string | null;
   onCancel: () => void;
-  onSubmit: (entryId: number, dto: CreateJournalEntryLineDto) => void;
+  onSubmit: (entryId: number, dto: CreateJournalEntryLineDto | UpdateJournalEntryLineDto) => void;
 }
 
 const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
@@ -170,7 +176,14 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
 
   const debitAmount = parseFloat(debit) || 0;
   const creditAmount = parseFloat(credit) || 0;
-  const isNonLeafSelected = accountId != null && !leafAccounts.some((a) => a.id === accountId);
+  // The original account on an existing line is presumed valid as-is (it was a leaf account
+  // when the line was created). This guard exists to stop users from actively *choosing* a
+  // non-leaf account via the combobox — not to invalidate an account that was already saved,
+  // which would otherwise false-positive if it was since deactivated or the accounts fetch
+  // came back empty/degraded.
+  const isOriginalEditAccount = mode === 'edit' && accountId === (initialLine?.account?.id ?? null);
+  const isNonLeafSelected =
+    accountId != null && !leafAccounts.some((a) => a.id === accountId) && !isOriginalEditAccount;
   const isMovementValid = debitAmount > 0 || creditAmount > 0;
   const isValid = entryId != null && accountId != null && !isNonLeafSelected && isMovementValid;
 
@@ -180,12 +193,22 @@ const JournalEntryLineFormDrawer: React.FC<JournalEntryLineFormDrawerProps> = ({
       setTouched(true);
       return;
     }
-    onSubmit(entryId, {
-      account_id: accountId,
-      debit: debitAmount,
-      credit: creditAmount,
-      ...(description.trim() ? { description: description.trim() } : {}),
-    });
+    if (mode === 'edit') {
+      const dto: UpdateJournalEntryLineDto = {
+        account_id: accountId,
+        debit: debitAmount,
+        credit: creditAmount,
+        description: description.trim() ? description.trim() : null,
+      };
+      onSubmit(entryId, dto);
+    } else {
+      onSubmit(entryId, {
+        account_id: accountId,
+        debit: debitAmount,
+        credit: creditAmount,
+        ...(description.trim() ? { description: description.trim() } : {}),
+      });
+    }
   };
 
   return createPortal(
@@ -449,7 +472,7 @@ const JournalEntryLineDetailDrawer: React.FC<JournalEntryLineDetailDrawerProps> 
           </div>
           {!isEditable && (
             <p data-testid="line-locked-note" className="text-xs text-[#5f5e5e] italic pt-2">
-              This journal entry is POSTED — line items are locked.
+              This journal entry is {entry.status} — line items are locked.
             </p>
           )}
         </div>
@@ -657,7 +680,7 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
     setFormError(null);
   };
 
-  const handleFormSubmit = async (entryId: number, dto: CreateJournalEntryLineDto) => {
+  const handleFormSubmit = async (entryId: number, dto: CreateJournalEntryLineDto | UpdateJournalEntryLineDto) => {
     if (!formDrawer) return;
     setFormSubmitting(true);
     setFormError(null);
@@ -814,7 +837,7 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
             disabled={scopedEntry != null && scopedEntry.status !== 'DRAFT'}
             title={
               scopedEntry != null && scopedEntry.status !== 'DRAFT'
-                ? 'This journal entry is POSTED — line items are locked.'
+                ? `This journal entry is ${scopedEntry.status} — line items are locked.`
                 : undefined
             }
             className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"

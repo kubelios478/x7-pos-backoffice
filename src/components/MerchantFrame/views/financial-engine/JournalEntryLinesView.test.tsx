@@ -46,6 +46,15 @@ const entryB: JournalEntry = {
   lines: [{ id: 3, account: { id: 3, code: '4000', name: 'Sales Revenue' }, debit: 0, credit: 200, description: null }],
 };
 
+const voidedEntry: JournalEntry = {
+  ...entryA,
+  id: 4,
+  entry_number: 'JE-2024-0004',
+  status: 'VOIDED',
+  description: 'Voided correction',
+  lines: [{ id: 6, account: { id: 1, code: '1000', name: 'Cash' }, debit: 300, credit: 0, description: null }],
+};
+
 const draftEntry: JournalEntry = {
   ...entryA,
   id: 3,
@@ -440,6 +449,36 @@ describe('JournalEntryLinesView — create line', () => {
 
     expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
   });
+
+  it('on create failure, keeps the drawer open and shows an inline error (no toast)', async () => {
+    const cash: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/ledger-accounts')) {
+          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [cash], page: 1, limit: 100, total: 1, totalPages: 1 }) });
+        }
+        if (url.endsWith('/journal-entries/3/lines') && init?.method === 'POST') {
+          return Promise.resolve({ status: 400, ok: false, json: async () => ({ message: 'Account does not belong to company' }) });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [draftEntry], page: 1, limit: 100, total: 1, totalPages: 1, hasNext: false, hasPrev: false }) });
+      }),
+    );
+    render(<JournalEntryLinesView />);
+    await screen.findByRole('button', { name: /add line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.click(screen.getByLabelText(/journal entry/i));
+    await userEvent.click(screen.getByRole('option', { name: 'JE-2024-0003' }));
+    await userEvent.click(screen.getByLabelText(/ledger account/i));
+    await userEvent.click(screen.getByRole('option', { name: /1000 — Cash/i }));
+    await userEvent.type(screen.getByLabelText(/^debit$/i), '100');
+    await userEvent.click(screen.getByRole('button', { name: /save line item/i }));
+
+    expect(await screen.findByText('Account does not belong to company')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /add line item/i })).toBeInTheDocument();
+    expect(screen.queryByText(/created successfully/i)).not.toBeInTheDocument();
+  });
 });
 
 describe('JournalEntryLinesView — edit line', () => {
@@ -486,6 +525,52 @@ describe('JournalEntryLinesView — edit line', () => {
     await waitFor(() => expect(patchBody).toEqual({ account_id: 1, debit: 75, credit: 0, description: 'Adjustment' }));
     expect(await screen.findByText(/journal entry line updated successfully/i)).toBeInTheDocument();
   });
+
+  it('clearing the description on an existing line sends description: null (not an omitted key) in the PATCH body', async () => {
+    const cash: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
+    let patchBody: unknown = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/ledger-accounts')) {
+          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [cash], page: 1, limit: 100, total: 1, totalPages: 1 }) });
+        }
+        if (url.endsWith('/journal-entries/3/lines/5') && init?.method === 'PATCH') {
+          patchBody = JSON.parse(init.body as string);
+          return Promise.resolve({ status: 201, ok: true, json: async () => ({ statusCode: 201, message: 'ok', data: { id: 5, account: cash, debit: 50, credit: 0, description: null } }) });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [draftEntryWithLine], page: 1, limit: 100, total: 1, totalPages: 1, hasNext: false, hasPrev: false }) });
+      }),
+    );
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-3-5'));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const descriptionInput = screen.getByLabelText(/description/i);
+    await userEvent.clear(descriptionInput);
+    await userEvent.click(screen.getByRole('button', { name: /save line item/i }));
+
+    await waitFor(() => expect(patchBody).toEqual({ account_id: 1, debit: 50, credit: 0, description: null }));
+  });
+
+  it('does not show the non-leaf-account error when editing a line whose account is absent from leafAccounts (e.g. since deactivated)', async () => {
+    // draftEntryWithLine's line references account id 1 ("Cash"), but the ledger-accounts
+    // fetch here returns no accounts at all — simulating deactivation or a degraded fetch.
+    mockFetch([draftEntryWithLine], []);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-3-5'));
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save line item/i }));
+
+    expect(
+      screen.queryByText(/cannot post transactions directly to summary accounts/i),
+    ).not.toBeInTheDocument();
+    // not blocked: the submit actually went through (other validity conditions still pass normally)
+    expect(await screen.findByText(/journal entry line updated successfully/i)).toBeInTheDocument();
+  });
 });
 
 describe('JournalEntryLinesView — detail drawer', () => {
@@ -526,6 +611,17 @@ describe('JournalEntryLinesView — detail drawer', () => {
     expect(within(dialog).queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
     expect(within(dialog).getByText(/this journal entry is posted — line items are locked/i)).toBeInTheDocument();
+  });
+
+  it('reflects the actual status (not a hardcoded "POSTED") when the parent entry is VOIDED', async () => {
+    mockFetch([voidedEntry]);
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(screen.getByTestId('journal-entry-line-row-4-6'));
+
+    const dialog = screen.getByRole('dialog', { name: /journal entry line details/i });
+    expect(within(dialog).getByText(/this journal entry is voided — line items are locked/i)).toBeInTheDocument();
   });
 
   it('the parent-entry navigation link inside the row does not also open the detail drawer', async () => {
@@ -611,5 +707,29 @@ describe('JournalEntryLinesView — delete line', () => {
     await userEvent.click(screen.getByRole('button', { name: /^delete$/i }));
 
     expect(screen.getByText(/delete line item/i)).toBeInTheDocument();
+  });
+
+  it('on delete failure, closes the confirm dialog and shows a red error toast (not an inline error)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/ledger-accounts')) {
+          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [], page: 1, limit: 100, total: 0, totalPages: 1 }) });
+        }
+        if (url.endsWith('/journal-entries/3/lines/5') && init?.method === 'DELETE') {
+          return Promise.resolve({ status: 409, ok: false, json: async () => ({ message: 'Line is referenced elsewhere' }) });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [draftEntryWithLine], page: 1, limit: 100, total: 1, totalPages: 1, hasNext: false, hasPrev: false }) });
+      }),
+    );
+    render(<JournalEntryLinesView />);
+    await screen.findByText('1 lines');
+
+    await userEvent.click(within(screen.getByTestId('journal-entry-line-row-3-5')).getByLabelText(/delete line/i));
+    await userEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
+
+    await waitFor(() => expect(screen.queryByText(/delete line item/i)).not.toBeInTheDocument());
+    const toast = await screen.findByText('Line is referenced elsewhere');
+    expect(toast.closest('div')?.className).toContain('bg-red-600');
   });
 });

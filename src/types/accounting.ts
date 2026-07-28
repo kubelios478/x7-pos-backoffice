@@ -65,7 +65,9 @@ export interface CreateJournalEntryLineDto {
   description?: string;
 }
 
-export type UpdateJournalEntryLineDto = Partial<CreateJournalEntryLineDto>;
+export type UpdateJournalEntryLineDto = Partial<Omit<CreateJournalEntryLineDto, 'description'>> & {
+  description?: string | null;
+};
 
 export interface CreateJournalEntryDto {
   entry_number: string;
