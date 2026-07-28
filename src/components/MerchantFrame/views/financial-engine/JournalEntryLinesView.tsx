@@ -1068,6 +1068,21 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
         )}
 
       <LedgerQuickLinks current="journal-entries-lines" onNavigate={onNavigate} />
+
+      <button
+        type="button"
+        onClick={openCreateDrawer}
+        disabled={scopedEntry != null && scopedEntry.status !== 'DRAFT'}
+        title={
+          scopedEntry != null && scopedEntry.status !== 'DRAFT'
+            ? `This journal entry is ${scopedEntry.status} — line items are locked.`
+            : undefined
+        }
+        aria-label="Quick create line item"
+        className="fixed bottom-8 right-8 w-14 h-14 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed rounded-full shadow-lg flex items-center justify-center text-white transition-colors"
+      >
+        <span className="material-symbols-outlined text-2xl">add</span>
+      </button>
     </div>
   );
 };

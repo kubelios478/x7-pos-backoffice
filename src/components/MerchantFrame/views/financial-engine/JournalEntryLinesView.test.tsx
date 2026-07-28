@@ -450,6 +450,24 @@ describe('JournalEntryLinesView — create line', () => {
     expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
   });
 
+  it('the floating quick-create button opens the same Add Line Item drawer', async () => {
+    mockFetch([draftEntry]);
+    render(<JournalEntryLinesView />);
+    await screen.findByRole('button', { name: /quick create line item/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /quick create line item/i }));
+
+    expect(screen.getByRole('dialog', { name: /add line item/i })).toBeInTheDocument();
+  });
+
+  it('disables the floating quick-create button when the scoped entry is not DRAFT', async () => {
+    mockFetch([entryA]);
+    render(<JournalEntryLinesView entry={entryA} />);
+    await screen.findByText('2 lines');
+
+    expect(screen.getByRole('button', { name: /quick create line item/i })).toBeDisabled();
+  });
+
   it('on create failure, keeps the drawer open and shows an inline error (no toast)', async () => {
     const cash: LedgerAccount = { id: 1, code: '1000', name: 'Cash', type: 'ASSET', is_active: true, parent_account_id: null };
     vi.stubGlobal(
