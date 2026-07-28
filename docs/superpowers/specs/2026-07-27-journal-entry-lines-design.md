@@ -4,6 +4,13 @@
 **Branch:** rafaalejandro_subscription
 **Area:** MerchantFrame / financial-engine (sibling of Journal Entries and Ledger Accounts)
 
+> **Superseded 2026-07-28:** the read-only scope decided here (§1, §7) was reversed at
+> the user's explicit request. See
+> `docs/superpowers/specs/2026-07-28-journal-entry-lines-crud-design.md` for the full
+> CRUD (Create/View Details/Update/Soft-Delete) design that now applies to this
+> workspace. This document is kept for the backend investigation in §1, which is still
+> accurate.
+
 ## 1. Problem & Origin Story
 
 As an authenticated Merchant Administrator or Finance Manager, I want a centralized
