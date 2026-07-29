@@ -51,6 +51,10 @@ import { TipRulesView } from './views/TipRulesView';
 import { OvertimeRulesView } from './views/OvertimeRulesView';
 import { PayrollRulesView } from './views/PayrollRulesView';
 import { SuppliersView } from './views/SuppliersView';
+import { SupplierInvoicesView } from './views/SupplierInvoicesView';
+import { SupplierInvoiceItemsView } from './views/SupplierInvoiceItemsView';
+import { SupplierCreditNotesView } from './views/SupplierCreditNotesView';
+import { SupplierPaymentsView } from './views/SupplierPaymentsView';
 import { LocationsView } from './views/products-inventory/stocks/locations/LocationsView';
 import { PurchaseOrdersView } from './views/products-inventory/purchase-order/PurchaseOrdersView';
 import { StockInventoryView } from './views/products-inventory/stocks/items/StockInventoryView';
@@ -516,6 +520,22 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'suppliers') {
       return <SuppliersView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-invoices') {
+      return <SupplierInvoicesView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-invoice-items') {
+      return <SupplierInvoiceItemsView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-credit-notes') {
+      return <SupplierCreditNotesView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-payments') {
+      return <SupplierPaymentsView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
     }
 
     if (activeTab === 'locations') {

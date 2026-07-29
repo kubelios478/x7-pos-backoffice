@@ -11,6 +11,8 @@ import { PlatformFeatureCatalogView } from './views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from './views/PlanApplicationsView';
 import { PlanFeaturesView } from './views/PlanFeaturesView';
 import { CompanyRegistryView } from './views/CompanyRegistryView';
+import { OrdersRegistryView } from './views/OrdersRegistryView';
+import { MerchantSettlementsView } from './views/MerchantSettlementsView';
 import type { SubscriptionPlan } from '../../types/subscription';
 
 export const SaaSFrame: React.FC = () => {
@@ -112,6 +114,14 @@ export const SaaSFrame: React.FC = () => {
 
     if (activeTab === 'companies') {
       return <CompanyRegistryView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'orders-registry') {
+      return <OrdersRegistryView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'merchant-settlements') {
+      return <MerchantSettlementsView onNavigate={handleNavigateView} />;
     }
 
     if (
@@ -221,6 +231,8 @@ export const SaaSFrame: React.FC = () => {
                 { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
                 { id: 'subscription', label: 'Subscription Plans', icon: 'workspace_premium' },
                 { id: 'companies', label: 'Companies', icon: 'corporate_fare' },
+                { id: 'orders-registry', label: 'Orders Registry', icon: 'receipt_long' },
+                { id: 'merchant-settlements', label: 'Merchant Settlements', icon: 'account_balance_wallet' },
                 { id: 'merchants', label: 'Merchants', icon: 'store' },
                 { id: 'users', label: 'Users', icon: 'group' },
                 { id: 'reports', label: 'Reports', icon: 'description' },
@@ -394,6 +406,8 @@ export const SaaSFrame: React.FC = () => {
                 Platform SaaS <span className="text-[#d51f2c]">/</span>{' '}
                 {activeTab === 'dashboard' ? 'Overview'
                   : activeTab === 'companies' ? 'Company Management'
+                  : activeTab === 'orders-registry' ? 'Orders Registry'
+                  : activeTab === 'merchant-settlements' ? 'Merchant Settlements'
                   : activeTab === 'subscription' ? 'Subscription Plans'
                   : activeTab === 'subscription-applications' ? 'Applications'
                   : activeTab === 'subscription-features' ? 'Feature Catalog'
@@ -408,6 +422,10 @@ export const SaaSFrame: React.FC = () => {
                   ? 'Real-time performance metrics and merchant growth tracking.'
                   : activeTab === 'companies'
                     ? 'Global master directory of every company tenant registered on the platform.'
+                  : activeTab === 'orders-registry'
+                    ? 'Every order collected across all merchant restaurants, feeding the daily cash settlements.'
+                  : activeTab === 'merchant-settlements'
+                    ? 'Daily cash payouts: the net revenue collected from each merchant’s orders that we transfer back to them.'
                   : activeTab === 'subscription'
                     ? 'Manage subscription tiers, pricing models, and billing cadences for your platform.'
                     : activeTab === 'subscription-applications'

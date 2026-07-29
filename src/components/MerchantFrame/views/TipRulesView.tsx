@@ -1183,7 +1183,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-center gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1205,7 +1205,7 @@ export const TipRulesView: React.FC<TipRulesViewProps> = ({ onNavigate }) => {
                               className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
                             >
                               <span className="material-symbols-outlined text-[20px]">
-                                {rule.status === 'active' ? 'block' : 'check_circle'}
+                                {rule.status === 'active' ? 'delete' : 'check'}
                               </span>
                             </button>
                           </div>
