@@ -606,7 +606,7 @@ describe('JournalEntryLinesView — detail drawer', () => {
     expect(within(dialog).getByText('POSTED')).toBeInTheDocument();
   });
 
-  it('shows Edit and Delete actions when the parent entry is DRAFT', async () => {
+  it('shows the Edit action when the parent entry is DRAFT', async () => {
     mockFetch([draftEntryWithLine]);
     render(<JournalEntryLinesView />);
     await screen.findByText('1 lines');
@@ -615,10 +615,9 @@ describe('JournalEntryLinesView — detail drawer', () => {
 
     const dialog = screen.getByRole('dialog', { name: /journal entry line details/i });
     expect(within(dialog).getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /^delete$/i })).toBeInTheDocument();
   });
 
-  it('hides actions and shows a locked note when the parent entry is POSTED', async () => {
+  it('hides the Edit action and shows a locked note when the parent entry is POSTED', async () => {
     mockFetch([entryA]);
     render(<JournalEntryLinesView />);
     await screen.findByText('2 lines');
@@ -627,7 +626,6 @@ describe('JournalEntryLinesView — detail drawer', () => {
 
     const dialog = screen.getByRole('dialog', { name: /journal entry line details/i });
     expect(within(dialog).queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
     expect(within(dialog).getByText(/this journal entry is posted — line items are locked/i)).toBeInTheDocument();
   });
 
@@ -653,101 +651,5 @@ describe('JournalEntryLinesView — detail drawer', () => {
 
     expect(onNavigate).toHaveBeenCalledWith('journal-entries');
     expect(screen.queryByRole('dialog', { name: /journal entry line details/i })).not.toBeInTheDocument();
-  });
-});
-
-describe('JournalEntryLinesView — delete line', () => {
-  it('hides the delete icon on rows whose parent entry is not DRAFT', async () => {
-    mockFetch([entryA]);
-    render(<JournalEntryLinesView />);
-    await screen.findByText('2 lines');
-
-    expect(within(screen.getByTestId('journal-entry-line-row-1-1')).queryByLabelText(/delete line/i)).not.toBeInTheDocument();
-  });
-
-  it('clicking the row delete icon opens a confirmation modal; cancel makes no request', async () => {
-    mockFetch([draftEntryWithLine]);
-    render(<JournalEntryLinesView />);
-    await screen.findByText('1 lines');
-    (fetch as any).mockClear();
-
-    await userEvent.click(within(screen.getByTestId('journal-entry-line-row-3-5')).getByLabelText(/delete line/i));
-    expect(screen.getByText(/delete line item/i)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
-    expect(screen.queryByText(/delete line item/i)).not.toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it('confirming issues DELETE to the nested endpoint, refetches, and shows a success toast', async () => {
-    let deleteCalled = false;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string, init?: RequestInit) => {
-        if (url.includes('/ledger-accounts')) {
-          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [], page: 1, limit: 100, total: 0, totalPages: 1 }) });
-        }
-        if (url.endsWith('/journal-entries/3/lines/5') && init?.method === 'DELETE') {
-          deleteCalled = true;
-          return Promise.resolve({ status: 201, ok: true, json: async () => ({ statusCode: 201, message: 'ok', data: {} }) });
-        }
-        return Promise.resolve({
-          status: 200,
-          ok: true,
-          json: async () => ({
-            data: deleteCalled ? [{ ...draftEntryWithLine, lines: [] }] : [draftEntryWithLine],
-            page: 1,
-            limit: 100,
-            total: 1,
-            totalPages: 1,
-            hasNext: false,
-            hasPrev: false,
-          }),
-        });
-      }),
-    );
-    render(<JournalEntryLinesView />);
-    await screen.findByText('1 lines');
-
-    await userEvent.click(within(screen.getByTestId('journal-entry-line-row-3-5')).getByLabelText(/delete line/i));
-    await userEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
-
-    expect(await screen.findByText(/journal entry line deleted successfully/i)).toBeInTheDocument();
-    expect(deleteCalled).toBe(true);
-  });
-
-  it('is also reachable from the Detail Drawer when the parent entry is DRAFT', async () => {
-    mockFetch([draftEntryWithLine]);
-    render(<JournalEntryLinesView />);
-    await screen.findByText('1 lines');
-
-    await userEvent.click(screen.getByTestId('journal-entry-line-row-3-5'));
-    await userEvent.click(screen.getByRole('button', { name: /^delete$/i }));
-
-    expect(screen.getByText(/delete line item/i)).toBeInTheDocument();
-  });
-
-  it('on delete failure, closes the confirm dialog and shows a red error toast (not an inline error)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string, init?: RequestInit) => {
-        if (url.includes('/ledger-accounts')) {
-          return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [], page: 1, limit: 100, total: 0, totalPages: 1 }) });
-        }
-        if (url.endsWith('/journal-entries/3/lines/5') && init?.method === 'DELETE') {
-          return Promise.resolve({ status: 409, ok: false, json: async () => ({ message: 'Line is referenced elsewhere' }) });
-        }
-        return Promise.resolve({ status: 200, ok: true, json: async () => ({ data: [draftEntryWithLine], page: 1, limit: 100, total: 1, totalPages: 1, hasNext: false, hasPrev: false }) });
-      }),
-    );
-    render(<JournalEntryLinesView />);
-    await screen.findByText('1 lines');
-
-    await userEvent.click(within(screen.getByTestId('journal-entry-line-row-3-5')).getByLabelText(/delete line/i));
-    await userEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
-
-    await waitFor(() => expect(screen.queryByText(/delete line item/i)).not.toBeInTheDocument());
-    const toast = await screen.findByText('Line is referenced elsewhere');
-    expect(toast.closest('div')?.className).toContain('bg-red-600');
   });
 });

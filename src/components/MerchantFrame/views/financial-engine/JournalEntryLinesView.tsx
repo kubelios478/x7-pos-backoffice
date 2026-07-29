@@ -377,7 +377,6 @@ interface JournalEntryLineDetailDrawerProps {
   accountsById: Map<number, LedgerAccount>;
   onClose: () => void;
   onEdit: () => void;
-  onDelete: () => void;
 }
 
 const JournalEntryLineDetailDrawer: React.FC<JournalEntryLineDetailDrawerProps> = ({
@@ -385,7 +384,6 @@ const JournalEntryLineDetailDrawer: React.FC<JournalEntryLineDetailDrawerProps> 
   accountsById,
   onClose,
   onEdit,
-  onDelete,
 }) => {
   const { line, entry } = item;
   const accountType = line.account ? accountsById.get(line.account.id)?.type : undefined;
@@ -407,22 +405,13 @@ const JournalEntryLineDetailDrawer: React.FC<JournalEntryLineDetailDrawerProps> 
           <span className="font-bold text-[11px] uppercase tracking-widest">Journal Entry Line Details</span>
           <div className="flex items-center gap-3">
             {isEditable && (
-              <>
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  className="text-white/70 hover:text-white transition-colors text-[11px] font-bold uppercase tracking-widest"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  className="text-white/70 hover:text-red-400 transition-colors text-[11px] font-bold uppercase tracking-widest"
-                >
-                  Delete
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={onEdit}
+                className="text-white/70 hover:text-white transition-colors text-[11px] font-bold uppercase tracking-widest"
+              >
+                Edit
+              </button>
             )}
             <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
               <span className="material-symbols-outlined">close</span>
@@ -482,56 +471,6 @@ const JournalEntryLineDetailDrawer: React.FC<JournalEntryLineDetailDrawerProps> 
   );
 };
 
-interface ConfirmDeleteLineDialogProps {
-  item: FlattenedJournalEntryLine;
-  submitting: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-const ConfirmDeleteLineDialog: React.FC<ConfirmDeleteLineDialogProps> = ({ item, submitting, onConfirm, onCancel }) => {
-  const { line, entry } = item;
-  const accountLabel = line.account ? `${line.account.code} — ${line.account.name}` : 'this line';
-  const amount = line.debit > 0 ? formatCurrency(line.debit) : formatCurrency(line.credit);
-  return createPortal(
-    <div className="fixed inset-0 bg-black/50 z-[10000] flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md shadow-2xl">
-        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-white">DELETE LINE ITEM</span>
-          <button type="button" onClick={onCancel} disabled={submitting} className="text-white/50 hover:text-white transition-colors disabled:opacity-50">
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <div className="p-6 space-y-5">
-          <p className="text-sm text-[#1d1c17] leading-relaxed">
-            This will remove the {accountLabel} line ({amount}) from journal entry "{entry.entry_number}". This
-            cannot be undone.
-          </p>
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={submitting}
-              className="px-5 py-2 border border-[#e8e2d8] text-[#1d1c17] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={submitting}
-              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
-            >
-              {submitting ? 'Deleting…' : 'Confirm Delete'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-};
-
 type PostingTypeFilter = '' | 'DEBIT' | 'CREDIT';
 
 interface JournalEntryLinesViewProps {
@@ -558,8 +497,6 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
   const [formError, setFormError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [detailItem, setDetailItem] = useState<FlattenedJournalEntryLine | null>(null);
-  const [deleteItem, setDeleteItem] = useState<FlattenedJournalEntryLine | null>(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const fetchJournalEntries = async () => {
     setLoading(true);
@@ -717,40 +654,6 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deleteItem) return;
-    setDeleteSubmitting(true);
-    try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE}/journal-entries/${deleteItem.entry.id}/lines/${deleteItem.line.id}`, {
-        method: 'DELETE',
-        headers,
-      });
-
-      if (res.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
-        return;
-      }
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.message || 'Failed to delete journal entry line');
-
-      await fetchJournalEntries();
-      setDeleteItem(null);
-      setDetailItem(null);
-      setToast({ message: 'Journal entry line deleted successfully', type: 'success' });
-    } catch (err: any) {
-      setDeleteItem(null);
-      setToast({ message: err.message || 'Failed to delete journal entry line', type: 'error' });
-    } finally {
-      setDeleteSubmitting(false);
-    }
-  };
-
   const isTrueEmpty = !loading && !error && flattenedLines.length === 0;
   const isFilteredEmpty = !loading && !error && flattenedLines.length > 0 && filteredLines.length === 0;
 
@@ -895,9 +798,6 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
                   <th className="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                     Credit
                   </th>
-                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e8e2d8]">
@@ -909,12 +809,11 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
                       <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-40" /></td>
                       <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20 ml-auto" /></td>
                       <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20 ml-auto" /></td>
-                      <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-8 mx-auto" /></td>
                     </tr>
                   ))
                 ) : isFilteredEmpty ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center">
+                    <td colSpan={5} className="px-6 py-10 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <span className="material-symbols-outlined text-[#5f5e5e] text-4xl">search_off</span>
                         <p className="text-sm text-[#5f5e5e]">No posting line items match your active filters</p>
@@ -992,21 +891,6 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
                       >
                         {formatCurrency(item.line.credit)}
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        {item.entry.status === 'DRAFT' && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteItem(item);
-                            }}
-                            aria-label={`Delete line ${item.key}`}
-                            className="text-[#5f5e5e] hover:text-red-600 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-xl">delete</span>
-                          </button>
-                        )}
-                      </td>
                     </tr>
                   ))
                 )}
@@ -1036,16 +920,6 @@ export const JournalEntryLinesView: React.FC<JournalEntryLinesViewProps> = ({ en
           accountsById={accountsById}
           onClose={() => setDetailItem(null)}
           onEdit={() => openEditDrawer(detailItem)}
-          onDelete={() => setDeleteItem(detailItem)}
-        />
-      )}
-
-      {deleteItem && (
-        <ConfirmDeleteLineDialog
-          item={deleteItem}
-          submitting={deleteSubmitting}
-          onConfirm={handleConfirmDelete}
-          onCancel={() => setDeleteItem(null)}
         />
       )}
 
