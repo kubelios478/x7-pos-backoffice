@@ -51,10 +51,15 @@ import { TipRulesView } from './views/TipRulesView';
 import { OvertimeRulesView } from './views/OvertimeRulesView';
 import { PayrollRulesView } from './views/PayrollRulesView';
 import { SuppliersView } from './views/SuppliersView';
+import { SupplierInvoicesView } from './views/SupplierInvoicesView';
+import { SupplierInvoiceItemsView } from './views/SupplierInvoiceItemsView';
+import { SupplierCreditNotesView } from './views/SupplierCreditNotesView';
+import { SupplierPaymentsView } from './views/SupplierPaymentsView';
 import { LocationsView } from './views/products-inventory/stocks/locations/LocationsView';
 import { PurchaseOrdersView } from './views/products-inventory/purchase-order/PurchaseOrdersView';
 import { StockInventoryView } from './views/products-inventory/stocks/items/StockInventoryView';
 import { MerchantDirectoryView } from './views/MerchantDirectoryView';
+import { UserManagementView } from './views/UserManagementView';
 import { CompanyProfileView } from './views/CompanyProfileView';
 import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
 import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
@@ -113,6 +118,9 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/merchants') {
       setActiveCategory('platformsaas');
       setActiveTab('merchant-directory');
+    } else if (path === '/dashboard/users') {
+      setActiveCategory('platformsaas');
+      setActiveTab('user-management');
     } else if (path === '/dashboard/company-profile') {
       setActiveCategory('platformsaas');
       setActiveTab('company-profile');
@@ -235,6 +243,7 @@ export const MerchantFrame: React.FC = () => {
           '/dashboard/company-profile',
           '/dashboard/company-configurations',
           '/dashboard/merchants',
+          '/dashboard/users',
         ];
         const isMerchantCompanyRoute = merchantCompanyPaths.includes(
           location.pathname,
@@ -497,6 +506,10 @@ export const MerchantFrame: React.FC = () => {
       return <MerchantDirectoryView />;
     }
 
+    if (activeTab === 'user-management') {
+      return <UserManagementView />;
+    }
+
     if (activeTab === 'company-profile') {
       return <CompanyProfileView />;
     }
@@ -507,6 +520,22 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'suppliers') {
       return <SuppliersView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-invoices') {
+      return <SupplierInvoicesView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-invoice-items') {
+      return <SupplierInvoiceItemsView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-credit-notes') {
+      return <SupplierCreditNotesView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+    }
+
+    if (activeTab === 'supplier-payments') {
+      return <SupplierPaymentsView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
     }
 
     if (activeTab === 'locations') {
@@ -870,6 +899,8 @@ export const MerchantFrame: React.FC = () => {
                                           navigate('/dashboard/categories');
                                         } else if (feat.id === 'merchant-directory') {
                                           navigate('/dashboard/merchants');
+                                        } else if (feat.id === 'user-management') {
+                                          navigate('/dashboard/users');
                                         } else if (feat.id === 'company-profile') {
                                           navigate('/dashboard/company-profile');
                                         } else if (feat.id === 'company-configurations') {

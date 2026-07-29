@@ -1,5 +1,6 @@
 //src/services/saasService.ts
 import type { SubscriptionPlan, CreateSubscriptionPlanDto, UpdateSubscriptionPlanDto, Application, PlatformFeature, PlanApplication, CreatePlanApplicationDto, UpdatePlanApplicationDto, PlanFeature, CreatePlanFeatureDto, UpdatePlanFeatureDto } from '../types/subscription';
+import type { CompanyRegistryItem, CompanyRegistryPayload, CompanyRegistryStatus } from '../types/company-registry';
 import { getSaasToken, clearSaasToken } from '../lib/saas-auth-storage';
 
 async function saasApiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -394,6 +395,46 @@ export const saasService = {
     const response = await saasApiFetch<{ data: PlanFeature }>(
       `plan-features/${id}`,
       { method: 'DELETE' },
+    );
+    return response.data;
+  },
+
+  // ── Global Company Registry (SaaS Owner) ──────────────────────────────
+  async listCompanies(): Promise<CompanyRegistryItem[]> {
+    const response = await saasApiFetch<{ data: CompanyRegistryItem[] }>(
+      'companies',
+    );
+    return response.data ?? [];
+  },
+
+  async createCompany(
+    payload: CompanyRegistryPayload,
+  ): Promise<CompanyRegistryItem> {
+    const response = await saasApiFetch<{ data: CompanyRegistryItem }>(
+      'companies',
+      { method: 'POST', body: JSON.stringify(payload) },
+    );
+    return response.data;
+  },
+
+  async updateCompany(
+    id: number,
+    payload: CompanyRegistryPayload,
+  ): Promise<CompanyRegistryItem> {
+    const response = await saasApiFetch<{ data: CompanyRegistryItem }>(
+      `companies/${id}`,
+      { method: 'PUT', body: JSON.stringify(payload) },
+    );
+    return response.data;
+  },
+
+  async setCompanyStatus(
+    id: number,
+    status: CompanyRegistryStatus,
+  ): Promise<CompanyRegistryItem> {
+    const response = await saasApiFetch<{ data: CompanyRegistryItem }>(
+      `companies/${id}/status`,
+      { method: 'PATCH', body: JSON.stringify({ status }) },
     );
     return response.data;
   },

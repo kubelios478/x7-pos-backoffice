@@ -10,6 +10,9 @@ import { PlatformApplicationsView } from './views/PlatformApplicationsView';
 import { PlatformFeatureCatalogView } from './views/PlatformFeatureCatalogView';
 import { PlanApplicationsView } from './views/PlanApplicationsView';
 import { PlanFeaturesView } from './views/PlanFeaturesView';
+import { CompanyRegistryView } from './views/CompanyRegistryView';
+import { OrdersRegistryView } from './views/OrdersRegistryView';
+import { MerchantSettlementsView } from './views/MerchantSettlementsView';
 import type { SubscriptionPlan } from '../../types/subscription';
 
 export const SaaSFrame: React.FC = () => {
@@ -107,6 +110,18 @@ export const SaaSFrame: React.FC = () => {
           onNavigate={handleNavigateView}
         />
       );
+    }
+
+    if (activeTab === 'companies') {
+      return <CompanyRegistryView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'orders-registry') {
+      return <OrdersRegistryView onNavigate={handleNavigateView} />;
+    }
+
+    if (activeTab === 'merchant-settlements') {
+      return <MerchantSettlementsView onNavigate={handleNavigateView} />;
     }
 
     if (
@@ -216,6 +231,8 @@ export const SaaSFrame: React.FC = () => {
                 { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
                 { id: 'subscription', label: 'Subscription Plans', icon: 'workspace_premium' },
                 { id: 'companies', label: 'Companies', icon: 'corporate_fare' },
+                { id: 'orders-registry', label: 'Orders Registry', icon: 'receipt_long' },
+                { id: 'merchant-settlements', label: 'Merchant Settlements', icon: 'account_balance_wallet' },
                 { id: 'merchants', label: 'Merchants', icon: 'store' },
                 { id: 'users', label: 'Users', icon: 'group' },
                 { id: 'reports', label: 'Reports', icon: 'description' },
@@ -350,6 +367,13 @@ export const SaaSFrame: React.FC = () => {
           {/* Dashboard Header */}
           <div className="flex justify-between items-end">
             <div>
+              {activeTab === 'companies' && (
+                <nav className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] mb-1">
+                  <span>SaaS Admin</span>
+                  <span className="text-[#d51f2c]">›</span>
+                  <span className="text-[#1d1c17]">Company Management</span>
+                </nav>
+              )}
               {(activeTab === 'subscription-applications' ||
               activeTab === 'subscription-live-installs' ||
               activeTab === 'subscription-features' ||
@@ -381,6 +405,9 @@ export const SaaSFrame: React.FC = () => {
               <h1 className="font-sans text-h1 text-[#222222] uppercase tracking-tighter">
                 Platform SaaS <span className="text-[#d51f2c]">/</span>{' '}
                 {activeTab === 'dashboard' ? 'Overview'
+                  : activeTab === 'companies' ? 'Company Management'
+                  : activeTab === 'orders-registry' ? 'Orders Registry'
+                  : activeTab === 'merchant-settlements' ? 'Merchant Settlements'
                   : activeTab === 'subscription' ? 'Subscription Plans'
                   : activeTab === 'subscription-applications' ? 'Applications'
                   : activeTab === 'subscription-features' ? 'Feature Catalog'
@@ -393,6 +420,12 @@ export const SaaSFrame: React.FC = () => {
               <p className="text-body-md text-[#666666] mt-1">
                 {activeTab === 'dashboard'
                   ? 'Real-time performance metrics and merchant growth tracking.'
+                  : activeTab === 'companies'
+                    ? 'Global master directory of every company tenant registered on the platform.'
+                  : activeTab === 'orders-registry'
+                    ? 'Every order collected across all merchant restaurants, feeding the daily cash settlements.'
+                  : activeTab === 'merchant-settlements'
+                    ? 'Daily cash payouts: the net revenue collected from each merchant’s orders that we transfer back to them.'
                   : activeTab === 'subscription'
                     ? 'Manage subscription tiers, pricing models, and billing cadences for your platform.'
                     : activeTab === 'subscription-applications'
