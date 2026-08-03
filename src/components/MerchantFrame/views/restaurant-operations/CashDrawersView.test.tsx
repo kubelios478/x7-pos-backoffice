@@ -30,6 +30,38 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const openDrawer: CashDrawer = {
+  id: 1,
+  openingBalance: 100,
+  currentBalance: 125.5,
+  closingBalance: null,
+  createdAt: '2026-08-01T08:00:00Z',
+  updatedAt: '2026-08-01T08:00:00Z',
+  status: 'Open',
+  merchant: { id: 1, name: 'Restaurant ABC' },
+  shift: {
+    id: 3,
+    name: 'Shift 3',
+    startTime: '2026-08-01T08:00:00Z',
+    endTime: '2026-08-01T16:00:00Z',
+    status: 'ACTIVE',
+    merchant: { id: 1, name: 'Restaurant ABC' },
+  },
+  openedByCollaborator: { id: 10, name: 'John Doe', role: 'WAITER' },
+  closedByCollaborator: null,
+};
+
+const closedDrawer: CashDrawer = {
+  ...openDrawer,
+  id: 2,
+  openingBalance: 150,
+  closingBalance: 155.0,
+  currentBalance: 150.5,
+  status: 'Close',
+  openedByCollaborator: { id: 12, name: 'Alice Brown', role: 'HOST' },
+  closedByCollaborator: { id: 11, name: 'Jane Smith', role: 'MANAGER' },
+};
+
 describe('CashDrawersView — data fetch', () => {
   it('fetches cash drawers on mount with the expected query params', async () => {
     mockFetchOnce([]);
@@ -75,3 +107,45 @@ describe('CashDrawersView — data fetch', () => {
     window.location = originalLocation;
   });
 });
+
+describe('CashDrawersView — grid rendering', () => {
+  it('renders session id, shift badge, balances, staff, and status for each row', async () => {
+    mockFetchOnce([openDrawer, closedDrawer]);
+    render(<CashDrawersView />);
+
+    expect(await screen.findByText('#CD-1')).toBeInTheDocument();
+    expect(screen.getAllByText('Shift 3').length).toBeGreaterThan(0);
+    expect(screen.getByText('$100.00')).toBeInTheDocument();
+    expect(screen.getByText('$125.50')).toBeInTheDocument();
+    expect(screen.getByText('--')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('In Service')).toBeInTheDocument();
+    expect(screen.getByText('Open')).toBeInTheDocument();
+
+    expect(screen.getByText('$150.50')).toBeInTheDocument();
+    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+    expect(screen.getByText('Close')).toBeInTheDocument();
+  });
+
+  it('never renders raw foreign key values', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+    expect(screen.queryByText('10')).not.toBeInTheDocument();
+  });
+});
+
+describe('CashDrawersView — true empty state', () => {
+  it('shows the true-empty state when the API returns zero sessions', async () => {
+    mockFetchOnce([]);
+    render(<CashDrawersView />);
+
+    expect(await screen.findByTestId('cash-drawers-empty-state')).toBeInTheDocument();
+    expect(
+      screen.getByText(/No cash drawer sessions found\. Click 'Open Cash Drawer' to initialize a new drawer session\./i),
+    ).toBeInTheDocument();
+  });
+});
+
