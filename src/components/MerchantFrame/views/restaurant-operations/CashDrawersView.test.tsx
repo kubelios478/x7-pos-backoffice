@@ -29,6 +29,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 const openDrawer: CashDrawer = {
@@ -125,7 +126,9 @@ describe('CashDrawersView — grid rendering', () => {
 
     expect(screen.getByText('$150.50')).toBeInTheDocument();
     expect(screen.getByText('Jane Smith')).toBeInTheDocument();
-    expect(screen.getByText('Close')).toBeInTheDocument();
+    // "Close" also appears as the status filter dropdown's option label now
+    // (Finding 7), so this must tolerate multiple matches.
+    expect(screen.getAllByText('Close').length).toBeGreaterThan(0);
   });
 
   it('never renders raw foreign key values', async () => {
@@ -137,10 +140,20 @@ describe('CashDrawersView — grid rendering', () => {
     expect(screen.queryByText('10')).not.toBeInTheDocument();
   });
 
-  it('formats currency correctly for values with a thousands separator, even when the API sends numeric strings', async () => {
-    mockFetchOnce([{ ...openDrawer, id: 3, openingBalance: '12345.00' as unknown as number }]);
+  it('normalizes numeric-string balances from the API (real decimal-column behavior) and formats them correctly', async () => {
+    // The backend's `decimal` columns serialize as JSON strings, e.g. "12345.00".
+    // This mocks that real shape (no artificial cast) to verify normalizeDrawer
+    // converts it before it ever reaches formatCurrency/state.
+    const rawApiDrawer = {
+      ...openDrawer,
+      id: 3,
+      openingBalance: '12345.00',
+      currentBalance: '125.50',
+    };
+    mockFetchOnce([rawApiDrawer as unknown as CashDrawer]);
     render(<CashDrawersView />);
     expect(await screen.findByText('$12,345.00')).toBeInTheDocument();
+    expect(await screen.findByText('$125.50')).toBeInTheDocument();
   });
 });
 
@@ -168,6 +181,17 @@ describe('CashDrawersView — search and filters', () => {
     expect(screen.getByText('#CD-2')).toBeInTheDocument();
   });
 
+  it('labels the status dropdown Close option to match the badge/detail-modal wording (not "Closed")', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    const statusSelect = screen.getByLabelText(/filter by status/i);
+    const closeOption = within(statusSelect).getByRole('option', { name: 'Close' });
+    expect(closeOption).toHaveValue('Close');
+    expect(within(statusSelect).queryByRole('option', { name: 'Closed' })).not.toBeInTheDocument();
+  });
+
   it('refetches with a status query param when the status filter changes', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
@@ -184,13 +208,18 @@ describe('CashDrawersView — search and filters', () => {
     });
   });
 
-  it('refetches with a shiftId query param when the shift ID filter changes', async () => {
+  it('refetches with a shiftId query param when the shift ID filter changes (after the debounce settles)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
     await screen.findByText('#CD-1');
 
     mockFetchOnce([openDrawer]);
-    await userEvent.type(screen.getByLabelText(/filter by shift id/i), '3');
+    await user.type(screen.getByLabelText(/filter by shift id/i), '3');
+
+    await vi.runAllTimersAsync();
 
     await waitFor(() => {
       expect(fetch).toHaveBeenLastCalledWith(
@@ -198,6 +227,85 @@ describe('CashDrawersView — search and filters', () => {
         expect.anything(),
       );
     });
+
+    vi.useRealTimers();
+  });
+
+  it('debounces the shift ID filter so rapid typing only triggers one refetch, with the final value', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    // Use a single stable mock for the whole test (rather than re-stubbing
+    // via mockFetchOnce mid-test) so its call count accumulates correctly.
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({ statusCode: 200, message: 'ok', data: [openDrawer] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    const callsBeforeTyping = fetchMock.mock.calls.length;
+
+    const shiftIdInput = screen.getByLabelText(/filter by shift id/i);
+    await user.type(shiftIdInput, '12');
+
+    await vi.runAllTimersAsync();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        expect.stringContaining('shiftId=12'),
+        expect.anything(),
+      );
+    });
+    // Exactly one additional fetch fired for the whole rapid-typing sequence.
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeTyping + 1);
+
+    vi.useRealTimers();
+  });
+
+  it('ignores a stale in-flight response when a newer filter request has already superseded it', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    let resolveFirst: (value: unknown) => void = () => {};
+    let resolveSecond: (value: unknown) => void = () => {};
+    const firstResponse = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondResponse = new Promise((resolve) => {
+      resolveSecond = resolve;
+    });
+
+    const fetchMock = vi.fn().mockReturnValueOnce(firstResponse).mockReturnValueOnce(secondResponse);
+    vi.stubGlobal('fetch', fetchMock);
+
+    // statusFilter is not debounced, so these two selections fire two distinct
+    // fetches back to back — the second supersedes the first.
+    await userEvent.selectOptions(screen.getByLabelText(/filter by status/i), 'Open');
+    await userEvent.selectOptions(screen.getByLabelText(/filter by status/i), 'Pause');
+
+    // The newer (second) request resolves first.
+    resolveSecond({
+      status: 200,
+      ok: true,
+      json: async () => ({ statusCode: 200, message: 'ok', data: [closedDrawer] }),
+    });
+    await screen.findByText('#CD-2');
+
+    // The stale (first) request resolves late — it must be ignored.
+    resolveFirst({
+      status: 200,
+      ok: true,
+      json: async () => ({ statusCode: 200, message: 'ok', data: [openDrawer] }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByText('#CD-2')).toBeInTheDocument();
+    expect(screen.queryByText('#CD-1')).not.toBeInTheDocument();
   });
 
   it('shows the filtered-empty state and a clear-filters action when a filter matches nothing', async () => {
@@ -208,10 +316,28 @@ describe('CashDrawersView — search and filters', () => {
     await userEvent.type(screen.getByLabelText(/search cash drawer sessions/i), 'nonexistent-name');
 
     expect(screen.getByText(/no cash drawer sessions match your active filters/i)).toBeInTheDocument();
-    const clearButton = screen.getByRole('button', { name: /clear filters/i });
-    await userEvent.click(clearButton);
+    // Both the toolbar "Clear Filters" button and the in-table "Clear filters"
+    // link stay visible while the filtered set is empty — that's intentional
+    // redundancy, not a bug (the toolbar button no longer hides itself here).
+    const toolbarClearButton = screen.getByRole('button', { name: 'Clear Filters' });
+    expect(toolbarClearButton).toBeInTheDocument();
+    const inTableClearButton = screen.getByRole('button', { name: 'Clear filters' });
+    await userEvent.click(inTableClearButton);
 
     expect(screen.getByText('#CD-1')).toBeInTheDocument();
+  });
+
+  it('keeps the toolbar Clear Filters button visible (no layout shift) even when the filtered result set is empty', async () => {
+    mockFetchOnce([openDrawer, closedDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.type(screen.getByLabelText(/search cash drawer sessions/i), 'nonexistent-name');
+    expect(screen.getByRole('button', { name: 'Clear Filters' })).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText(/search cash drawer sessions/i));
+    await userEvent.type(screen.getByLabelText(/search cash drawer sessions/i), 'Jane');
+    expect(screen.getByRole('button', { name: 'Clear Filters' })).toBeInTheDocument();
   });
 
   it('shows the filtered-empty state and a clear-filters action when a server-side filter legitimately returns zero rows', async () => {
@@ -230,18 +356,53 @@ describe('CashDrawersView — search and filters', () => {
     });
 
     expect(screen.getByText(/no cash drawer sessions match your active filters/i)).toBeInTheDocument();
-    const clearButton = screen.getByRole('button', { name: /clear filters/i });
-    expect(clearButton).toBeInTheDocument();
+    const toolbarClearButton = screen.getByRole('button', { name: 'Clear Filters' });
+    expect(toolbarClearButton).toBeInTheDocument();
 
     mockFetchOnce([openDrawer]);
-    await userEvent.click(clearButton);
+    await userEvent.click(toolbarClearButton);
+
+    expect(await screen.findByText('#CD-1')).toBeInTheDocument();
+  });
+
+  it('shows the loading state immediately when clearing filters, avoiding a flash of the true-empty state', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    // Filter down to a legitimate empty server-side result first.
+    mockFetchOnce([]);
+    await userEvent.selectOptions(screen.getByLabelText(/filter by status/i), 'Pause');
+    await screen.findByText(/no cash drawer sessions match your active filters/i);
+
+    // Stall the refetch triggered by Clear Filters so we can inspect the
+    // in-between render before it resolves.
+    let resolveRefetch: (value: unknown) => void = () => {};
+    const pendingRefetch = new Promise((resolve) => {
+      resolveRefetch = resolve;
+    });
+    vi.stubGlobal('fetch', vi.fn(() => pendingRefetch));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear Filters' }));
+
+    // clearFilters() sets loading=true synchronously (before the reset filter
+    // states even trigger a refetch), so the loading skeleton must be showing
+    // now — never the true-empty "no sessions" call-to-action.
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('cash-drawers-empty-state')).not.toBeInTheDocument();
+
+    resolveRefetch({
+      status: 200,
+      ok: true,
+      json: async () => ({ statusCode: 200, message: 'ok', data: [openDrawer] }),
+    });
 
     expect(await screen.findByText('#CD-1')).toBeInTheDocument();
   });
 });
 
 describe('CashDrawersView — Open Cash Drawer', () => {
-  it('opens the create modal, validates fields, and submits a new session', async () => {
+  it('opens the create modal, validates fields, submits a new session, closes the dialog, and refetches the list', async () => {
     mockFetchOnce([]);
     render(<CashDrawersView />);
     await screen.findByTestId('cash-drawers-empty-state');
@@ -256,18 +417,27 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     await userEvent.type(within(dialog).getByLabelText(/opened by/i), '10');
     expect(submitButton).toBeEnabled();
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        status: 201,
+    // The success path no longer splices the raw POST response into state —
+    // it refetches the list instead, so the mock must answer both requests.
+    const fetchMock = vi.fn(async (_url: unknown, options?: { method?: string }) => {
+      if (options?.method === 'POST') {
+        return {
+          status: 201,
+          ok: true,
+          json: async () => ({ statusCode: 201, message: 'ok', data: openDrawer }),
+        };
+      }
+      return {
+        status: 200,
         ok: true,
-        json: async () => ({ statusCode: 201, message: 'ok', data: openDrawer }),
-      }),
-    );
+        json: async () => ({ statusCode: 200, message: 'ok', data: [openDrawer] }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
     await userEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/cash-drawers'),
         expect.objectContaining({
           method: 'POST',
@@ -275,10 +445,19 @@ describe('CashDrawersView — Open Cash Drawer', () => {
         }),
       );
     });
+    // A GET refetch follows the successful POST.
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        expect.stringContaining('/cash-drawers?'),
+        expect.objectContaining({ headers: expect.anything() }),
+      );
+    });
     expect(await screen.findByText(/cash drawer opened successfully/i)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /open cash drawer/i })).not.toBeInTheDocument();
+    expect(await screen.findByText('#CD-1')).toBeInTheDocument();
   });
 
-  it('shows the backend conflict message when a shift already has an open drawer', async () => {
+  it('shows the backend conflict message inline in the dialog, keeps the dialog open, and preserves typed input on error', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
     await screen.findByText('#CD-1');
@@ -299,9 +478,19 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     );
     await userEvent.click(within(dialog).getByRole('button', { name: /open drawer/i }));
 
+    await screen.findByText(/there is already an open cash drawer for this shift/i);
+
+    // The dialog must stay mounted (not discarded on error)...
+    const persistedDialog = screen.getByRole('dialog', { name: /open cash drawer/i });
+    expect(persistedDialog).toBeInTheDocument();
+    // ...the error must render inline inside it (not only as a toast)...
     expect(
-      await screen.findByText(/there is already an open cash drawer for this shift/i),
+      within(persistedDialog).getByText(/there is already an open cash drawer for this shift/i),
     ).toBeInTheDocument();
+    // ...and the user's typed input must still be there.
+    expect(within(persistedDialog).getByLabelText(/shift id/i)).toHaveValue(3);
+    expect(within(persistedDialog).getByLabelText(/opening balance/i)).toHaveValue(100);
+    expect(within(persistedDialog).getByLabelText(/opened by/i)).toHaveValue(10);
   });
 });
 
@@ -331,7 +520,7 @@ describe('CashDrawersView — Close Drawer', () => {
     expect(screen.queryByRole('button', { name: /close cash drawer 2/i })).not.toBeInTheDocument();
   });
 
-  it('closes a drawer with closing balance and closed by, updating the row in place', async () => {
+  it('closes a drawer with closing balance and closed by, closes the dialog, and refetches the list', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
     await screen.findByText('#CD-1');
@@ -349,18 +538,28 @@ describe('CashDrawersView — Close Drawer', () => {
       status: 'Close',
       closedByCollaborator: { id: 11, name: 'Jane Smith', role: 'MANAGER' },
     };
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
+    // The success path refetches the list rather than splicing the PUT
+    // response into state, so the mock must answer both the PUT and the
+    // follow-up GET.
+    const fetchMock = vi.fn(async (_url: unknown, options?: { method?: string }) => {
+      if (options?.method === 'PUT') {
+        return {
+          status: 200,
+          ok: true,
+          json: async () => ({ statusCode: 200, message: 'ok', data: closedResponse }),
+        };
+      }
+      return {
         status: 200,
         ok: true,
-        json: async () => ({ statusCode: 200, message: 'ok', data: closedResponse }),
-      }),
-    );
+        json: async () => ({ statusCode: 200, message: 'ok', data: [closedResponse] }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
     await userEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(
+      expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/cash-drawers/1'),
         expect.objectContaining({
           method: 'PUT',
@@ -368,8 +567,43 @@ describe('CashDrawersView — Close Drawer', () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        expect.stringContaining('/cash-drawers?'),
+        expect.objectContaining({ headers: expect.anything() }),
+      );
+    });
     expect(await screen.findByText(/cash drawer closed successfully/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /confirm close/i })).not.toBeInTheDocument();
     expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+  });
+
+  it('shows a close-drawer error inline in the dialog, keeps it open, and preserves typed input on error', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash drawer 1/i }));
+    await userEvent.clear(screen.getByLabelText(/closing balance/i));
+    await userEvent.type(screen.getByLabelText(/closing balance/i), '150.50');
+    await userEvent.type(screen.getByLabelText(/closed by/i), '11');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 400,
+        ok: false,
+        json: async () => ({ message: 'Closing balance does not reconcile with recorded transactions' }),
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /confirm close/i }));
+
+    await screen.findByText(/closing balance does not reconcile with recorded transactions/i);
+
+    // Dialog must stay mounted, error must be inline, typed values preserved.
+    expect(screen.getByRole('button', { name: /confirm close/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/closing balance/i)).toHaveValue(150.5);
+    expect(screen.getByLabelText(/closed by/i)).toHaveValue(11);
   });
 });
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
 import type {
@@ -16,8 +16,20 @@ export const STATUS_BADGE_CLASSES: Record<CashDrawerStatus, string> = {
   Pause: 'bg-amber-500/10 text-amber-600',
 };
 
+// The backend stores balances as Postgres `decimal` columns with no server-side
+// coercion, so they arrive over the wire as numeric strings (e.g. "12345.00").
+// Normalize at the fetch boundary so every `CashDrawer` in state has real numbers.
+export function normalizeDrawer(raw: CashDrawer): CashDrawer {
+  return {
+    ...raw,
+    openingBalance: Number(raw.openingBalance),
+    currentBalance: Number(raw.currentBalance),
+    closingBalance: raw.closingBalance == null ? null : Number(raw.closingBalance),
+  };
+}
+
 export function formatCurrency(n: number): string {
-  return `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatDateTime(value: string): string {
@@ -27,11 +39,17 @@ export function formatDateTime(value: string): string {
 
 interface OpenCashDrawerFormModalProps {
   submitting: boolean;
+  error: string | null;
   onCancel: () => void;
   onSubmit: (dto: CreateCashDrawerDto) => void;
 }
 
-const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({ submitting, onCancel, onSubmit }) => {
+const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({
+  submitting,
+  error,
+  onCancel,
+  onSubmit,
+}) => {
   const [shiftId, setShiftId] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
   const [openedBy, setOpenedBy] = useState('');
@@ -106,6 +124,13 @@ const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({ submi
               />
             </div>
           </div>
+          {error && (
+            <div className="px-6 pb-2 shrink-0">
+              <p role="alert" className="text-sm text-[#ae001a] font-medium">
+                {error}
+              </p>
+            </div>
+          )}
           <div className="p-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0">
             <button
               type="button"
@@ -211,11 +236,18 @@ const CashDrawerDetailModal: React.FC<CashDrawerDetailModalProps> = ({ drawer, o
 interface CloseCashDrawerDialogProps {
   drawer: CashDrawer;
   submitting: boolean;
+  error: string | null;
   onCancel: () => void;
   onConfirm: (dto: CloseCashDrawerDto) => void;
 }
 
-const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({ drawer, submitting, onCancel, onConfirm }) => {
+const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({
+  drawer,
+  submitting,
+  error,
+  onCancel,
+  onConfirm,
+}) => {
   const [closingBalance, setClosingBalance] = useState(String(drawer.currentBalance));
   const [closedBy, setClosedBy] = useState('');
 
@@ -261,6 +293,11 @@ const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({ drawer, s
             />
           </div>
         </div>
+        {error && (
+          <p role="alert" className="text-sm text-[#ae001a] font-medium mt-4">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="button"
@@ -291,8 +328,20 @@ export const CashDrawersView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | CashDrawerStatus>('');
   const [shiftIdFilter, setShiftIdFilter] = useState('');
+  const [debouncedShiftIdFilter, setDebouncedShiftIdFilter] = useState('');
+  const latestRequestIdRef = useRef(0);
+
+  // Debounce the shift ID filter before it participates in the server fetch, so
+  // typing multiple digits doesn't fire a request per keystroke.
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedShiftIdFilter(shiftIdFilter);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [shiftIdFilter]);
 
   const fetchCashDrawers = async () => {
+    const requestId = ++latestRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -302,7 +351,7 @@ export const CashDrawersView: React.FC = () => {
 
       const params = new URLSearchParams({ limit: '100', sortBy: 'createdAt', sortOrder: 'DESC' });
       if (statusFilter) params.set('status', statusFilter);
-      if (shiftIdFilter.trim()) params.set('shiftId', shiftIdFilter.trim());
+      if (debouncedShiftIdFilter.trim()) params.set('shiftId', debouncedShiftIdFilter.trim());
       const res = await fetch(`${API_BASE}/cash-drawers?${params.toString()}`, { headers });
 
       if (res.status === 401) {
@@ -316,18 +365,21 @@ export const CashDrawersView: React.FC = () => {
       }
 
       const json = await res.json();
-      setDrawers(json.data ?? []);
+      // A slower, superseded request must not clobber a fresher one's result.
+      if (requestId !== latestRequestIdRef.current) return;
+      setDrawers((json.data ?? []).map(normalizeDrawer));
     } catch (err) {
+      if (requestId !== latestRequestIdRef.current) return;
       console.error('Error fetching cash drawers:', err);
       setError('Failed to load cash drawer sessions. Please check if the backend is running.');
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestIdRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchCashDrawers();
-  }, [statusFilter, shiftIdFilter]);
+  }, [statusFilter, debouncedShiftIdFilter]);
 
   const filteredDrawers = React.useMemo(() => {
     const term = searchQuery.trim().toLowerCase();
@@ -350,6 +402,15 @@ export const CashDrawersView: React.FC = () => {
   const isFilteredEmpty = !loading && !error && hasActiveFilter && filteredDrawers.length === 0;
 
   const clearFilters = () => {
+    // Only force the loading state when a server-side filter (status/shiftId)
+    // is actually being cleared — that's the only case that triggers a
+    // refetch (via the effect below) and would otherwise flash the
+    // true-empty state for a frame. Clearing a client-side-only search
+    // filter doesn't refetch anything, so forcing loading here would leave
+    // it stuck true forever.
+    if (statusFilter || shiftIdFilter) {
+      setLoading(true);
+    }
     setSearchQuery('');
     setStatusFilter('');
     setShiftIdFilter('');
@@ -357,6 +418,7 @@ export const CashDrawersView: React.FC = () => {
 
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -365,8 +427,19 @@ export const CashDrawersView: React.FC = () => {
     return () => clearTimeout(t);
   }, [toast]);
 
+  const openCreateModal = () => {
+    setCreateError(null);
+    setFormModalOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    setCreateError(null);
+    setFormModalOpen(false);
+  };
+
   const handleCreateSubmit = async (dto: CreateCashDrawerDto) => {
     setFormSubmitting(true);
+    setCreateError(null);
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -389,12 +462,14 @@ export const CashDrawersView: React.FC = () => {
         throw new Error(json.message || 'Failed to open cash drawer');
       }
 
-      setDrawers((prev) => [json.data, ...prev]);
+      // Refetch instead of splicing the raw response into state: the list may
+      // currently reflect active server-side filters (status/shiftId), and only
+      // a refetch is guaranteed to stay consistent with them.
+      await fetchCashDrawers();
       setFormModalOpen(false);
       setToast({ message: 'Cash drawer opened successfully', type: 'success' });
     } catch (err: any) {
-      setFormModalOpen(false);
-      setToast({ message: err.message || 'Failed to open cash drawer', type: 'error' });
+      setCreateError(err.message || 'Failed to open cash drawer');
     } finally {
       setFormSubmitting(false);
     }
@@ -403,10 +478,22 @@ export const CashDrawersView: React.FC = () => {
   const [detailDrawer, setDetailDrawer] = useState<CashDrawer | null>(null);
   const [closingDrawer, setClosingDrawer] = useState<CashDrawer | null>(null);
   const [closeSubmitting, setCloseSubmitting] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
+
+  const openCloseDialog = (drawer: CashDrawer) => {
+    setCloseError(null);
+    setClosingDrawer(drawer);
+  };
+
+  const cancelCloseDialog = () => {
+    setCloseError(null);
+    setClosingDrawer(null);
+  };
 
   const handleCloseSubmit = async (dto: CloseCashDrawerDto) => {
     if (!closingDrawer) return;
     setCloseSubmitting(true);
+    setCloseError(null);
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -429,12 +516,13 @@ export const CashDrawersView: React.FC = () => {
         throw new Error(json.message || 'Failed to close cash drawer');
       }
 
-      setDrawers((prev) => prev.map((d) => (d.id === json.data.id ? json.data : d)));
+      // Same reasoning as create: refetch so the list stays correct under
+      // whatever status/shiftId filters are currently active.
+      await fetchCashDrawers();
       setClosingDrawer(null);
       setToast({ message: 'Cash drawer closed successfully', type: 'success' });
     } catch (err: any) {
-      setClosingDrawer(null);
-      setToast({ message: err.message || 'Failed to close cash drawer', type: 'error' });
+      setCloseError(err.message || 'Failed to close cash drawer');
     } finally {
       setCloseSubmitting(false);
     }
@@ -484,7 +572,7 @@ export const CashDrawersView: React.FC = () => {
         >
           <option value="">All Statuses</option>
           <option value="Open">Open</option>
-          <option value="Close">Closed</option>
+          <option value="Close">Close</option>
           <option value="Pause">Pause</option>
         </select>
         <input
@@ -495,7 +583,7 @@ export const CashDrawersView: React.FC = () => {
           className="w-28 px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
           aria-label="Filter by shift ID"
         />
-        {hasActiveFilter && !isFilteredEmpty && (
+        {hasActiveFilter && (
           <button
             type="button"
             onClick={clearFilters}
@@ -507,7 +595,7 @@ export const CashDrawersView: React.FC = () => {
         {!isTrueEmpty && (
           <button
             type="button"
-            onClick={() => setFormModalOpen(true)}
+            onClick={openCreateModal}
             className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
           >
             <span className="material-symbols-outlined text-base">add</span>
@@ -528,7 +616,7 @@ export const CashDrawersView: React.FC = () => {
           </p>
           <button
             type="button"
-            onClick={() => setFormModalOpen(true)}
+            onClick={openCreateModal}
             className="mt-6 px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-base">add</span>
@@ -653,7 +741,7 @@ export const CashDrawersView: React.FC = () => {
                             {drawer.status === 'Open' && (
                               <button
                                 type="button"
-                                onClick={() => setClosingDrawer(drawer)}
+                                onClick={() => openCloseDialog(drawer)}
                                 aria-label={`Close cash drawer ${drawer.id}`}
                                 className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
                               >
@@ -673,7 +761,8 @@ export const CashDrawersView: React.FC = () => {
       {formModalOpen && (
         <OpenCashDrawerFormModal
           submitting={formSubmitting}
-          onCancel={() => setFormModalOpen(false)}
+          error={createError}
+          onCancel={closeCreateModal}
           onSubmit={handleCreateSubmit}
         />
       )}
@@ -684,7 +773,8 @@ export const CashDrawersView: React.FC = () => {
         <CloseCashDrawerDialog
           drawer={closingDrawer}
           submitting={closeSubmitting}
-          onCancel={() => setClosingDrawer(null)}
+          error={closeError}
+          onCancel={cancelCloseDialog}
           onConfirm={handleCloseSubmit}
         />
       )}
