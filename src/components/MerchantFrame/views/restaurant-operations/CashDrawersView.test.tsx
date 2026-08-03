@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CashDrawersView } from './CashDrawersView';
@@ -241,12 +241,13 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     await screen.findByTestId('cash-drawers-empty-state');
 
     await userEvent.click(screen.getByRole('button', { name: /open cash drawer/i }));
-    const submitButton = screen.getByRole('button', { name: /open drawer/i });
+    const dialog = screen.getByRole('dialog', { name: /open cash drawer/i });
+    const submitButton = within(dialog).getByRole('button', { name: /open drawer/i });
     expect(submitButton).toBeDisabled();
 
-    await userEvent.type(screen.getByLabelText(/shift id/i), '3');
-    await userEvent.type(screen.getByLabelText(/opening balance/i), '100');
-    await userEvent.type(screen.getByLabelText(/opened by/i), '10');
+    await userEvent.type(within(dialog).getByLabelText(/shift id/i), '3');
+    await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
+    await userEvent.type(within(dialog).getByLabelText(/opened by/i), '10');
     expect(submitButton).toBeEnabled();
 
     vi.stubGlobal(
@@ -277,9 +278,10 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     await screen.findByText('#CD-1');
 
     await userEvent.click(screen.getByRole('button', { name: /open cash drawer/i }));
-    await userEvent.type(screen.getByLabelText(/shift id/i), '3');
-    await userEvent.type(screen.getByLabelText(/opening balance/i), '100');
-    await userEvent.type(screen.getByLabelText(/opened by/i), '10');
+    const dialog = screen.getByRole('dialog', { name: /open cash drawer/i });
+    await userEvent.type(within(dialog).getByLabelText(/shift id/i), '3');
+    await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
+    await userEvent.type(within(dialog).getByLabelText(/opened by/i), '10');
 
     vi.stubGlobal(
       'fetch',
@@ -289,7 +291,7 @@ describe('CashDrawersView — Open Cash Drawer', () => {
         json: async () => ({ message: 'There is already an open cash drawer for this shift' }),
       }),
     );
-    await userEvent.click(screen.getByRole('button', { name: /open drawer/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /open drawer/i }));
 
     expect(
       await screen.findByText(/there is already an open cash drawer for this shift/i),

@@ -287,16 +287,14 @@ export const CashDrawersView: React.FC = () => {
           <option value="Close">Closed</option>
           <option value="Pause">Pause</option>
         </select>
-        {!formModalOpen && (
-          <input
-            type="number"
-            value={shiftIdFilter}
-            onChange={(e) => setShiftIdFilter(e.target.value)}
-            placeholder="Shift ID"
-            className="w-28 px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
-            aria-label="Filter by shift ID"
-          />
-        )}
+        <input
+          type="number"
+          value={shiftIdFilter}
+          onChange={(e) => setShiftIdFilter(e.target.value)}
+          placeholder="Shift ID"
+          className="w-28 px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by shift ID"
+        />
         {hasActiveFilter && !isFilteredEmpty && (
           <button
             type="button"
