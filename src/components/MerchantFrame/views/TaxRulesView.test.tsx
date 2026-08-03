@@ -618,6 +618,19 @@ describe('TaxRulesView — cross-configuration quick links', () => {
     expect(within(nav).getByText('TIPS MANAGEMENT')).toBeInTheDocument();
   });
 
+  it('renders the Quick Launch panel title and description', async () => {
+    render(<TaxRulesView />);
+    await screen.findByText('State Sales Tax');
+
+    const nav = screen.getByRole('navigation', { name: /related configuration shortcuts/i });
+    expect(within(nav).getByText('Rule Configuration Shortcuts')).toBeInTheDocument();
+    expect(
+      within(nav).getByText(
+        'Pivot across Tax, Payroll, Overtime, and Tips rule modules without leaving merchant configuration context.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('renders the shortcut bar even while loading', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
     render(<TaxRulesView />);
