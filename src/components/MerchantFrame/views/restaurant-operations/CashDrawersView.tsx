@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
-import type { CashDrawer, CashDrawerStatus } from '../../../../types/cash-drawer';
+import type { CashDrawer, CashDrawerStatus, CreateCashDrawerDto } from '../../../../types/cash-drawer';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -18,6 +19,110 @@ export function formatDateTime(value: string): string {
   const d = new Date(value);
   return isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
+
+interface OpenCashDrawerFormModalProps {
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (dto: CreateCashDrawerDto) => void;
+}
+
+const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({ submitting, onCancel, onSubmit }) => {
+  const [shiftId, setShiftId] = useState('');
+  const [openingBalance, setOpeningBalance] = useState('');
+  const [openedBy, setOpenedBy] = useState('');
+
+  const shiftIdNum = parseInt(shiftId, 10);
+  const shiftIdValid = shiftId.trim() !== '' && Number.isInteger(shiftIdNum) && shiftIdNum > 0;
+
+  const openingBalanceNum = parseFloat(openingBalance);
+  const openingBalanceValid = openingBalance.trim() !== '' && !isNaN(openingBalanceNum) && openingBalanceNum >= 0;
+
+  const openedByNum = parseInt(openedBy, 10);
+  const openedByValid = openedBy.trim() !== '' && Number.isInteger(openedByNum) && openedByNum > 0;
+
+  const isValid = shiftIdValid && openingBalanceValid && openedByValid;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValid) return;
+    onSubmit({ shiftId: shiftIdNum, openingBalance: openingBalanceNum, openedBy: openedByNum });
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-start overflow-y-auto p-2 md:pt-4 md:pb-12 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-label="Open Cash Drawer"
+        className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-md overflow-hidden animate-fade-in text-left max-h-[90vh] flex flex-col"
+      >
+        <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
+          <span className="font-bold text-[11px] uppercase tracking-widest">Open Cash Drawer</span>
+          <button type="button" onClick={onCancel} className="text-white/70 hover:text-white transition-colors">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cash-drawer-shift-id" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                Shift ID
+              </label>
+              <input
+                id="cash-drawer-shift-id"
+                type="number"
+                value={shiftId}
+                onChange={(e) => setShiftId(e.target.value)}
+                className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cash-drawer-opening-balance" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                Opening Balance ($)
+              </label>
+              <input
+                id="cash-drawer-opening-balance"
+                type="number"
+                step="0.01"
+                value={openingBalance}
+                onChange={(e) => setOpeningBalance(e.target.value)}
+                className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="cash-drawer-opened-by" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                Opened By (Collaborator ID)
+              </label>
+              <input
+                id="cash-drawer-opened-by"
+                type="number"
+                value={openedBy}
+                onChange={(e) => setOpenedBy(e.target.value)}
+                className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+              />
+            </div>
+          </div>
+          <div className="p-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!isValid || submitting}
+              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
+            >
+              Open Drawer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+};
 
 export const CashDrawersView: React.FC = () => {
   const [drawers, setDrawers] = useState<CashDrawer[]>([]);
@@ -90,6 +195,51 @@ export const CashDrawersView: React.FC = () => {
     setShiftIdFilter('');
   };
 
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const handleCreateSubmit = async (dto: CreateCashDrawerDto) => {
+    setFormSubmitting(true);
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/cash-drawers`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(dto),
+      });
+
+      if (res.status === 401) {
+        clearAuthSession();
+        window.location.href = '/login';
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to open cash drawer');
+      }
+
+      setDrawers((prev) => [json.data, ...prev]);
+      setFormModalOpen(false);
+      setToast({ message: 'Cash drawer opened successfully', type: 'success' });
+    } catch (err: any) {
+      setFormModalOpen(false);
+      setToast({ message: err.message || 'Failed to open cash drawer', type: 'error' });
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
   const isTrueEmpty = !loading && !error && drawers.length === 0 && !hasActiveFilter;
 
   if (error) {
@@ -137,14 +287,16 @@ export const CashDrawersView: React.FC = () => {
           <option value="Close">Closed</option>
           <option value="Pause">Pause</option>
         </select>
-        <input
-          type="number"
-          value={shiftIdFilter}
-          onChange={(e) => setShiftIdFilter(e.target.value)}
-          placeholder="Shift ID"
-          className="w-28 px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
-          aria-label="Filter by shift ID"
-        />
+        {!formModalOpen && (
+          <input
+            type="number"
+            value={shiftIdFilter}
+            onChange={(e) => setShiftIdFilter(e.target.value)}
+            placeholder="Shift ID"
+            className="w-28 px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+            aria-label="Filter by shift ID"
+          />
+        )}
         {hasActiveFilter && !isFilteredEmpty && (
           <button
             type="button"
@@ -152,6 +304,16 @@ export const CashDrawersView: React.FC = () => {
             className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
           >
             Clear Filters
+          </button>
+        )}
+        {!isTrueEmpty && (
+          <button
+            type="button"
+            onClick={() => setFormModalOpen(true)}
+            className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            <span className="material-symbols-outlined text-base">add</span>
+            Open Cash Drawer
           </button>
         )}
       </div>
@@ -166,6 +328,14 @@ export const CashDrawersView: React.FC = () => {
             No cash drawer sessions found. Click &apos;Open Cash Drawer&apos; to initialize a new
             drawer session.
           </p>
+          <button
+            type="button"
+            onClick={() => setFormModalOpen(true)}
+            className="mt-6 px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">add</span>
+            Open Cash Drawer
+          </button>
         </div>
       )}
 
@@ -273,6 +443,30 @@ export const CashDrawersView: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {formModalOpen && (
+        <OpenCashDrawerFormModal
+          submitting={formSubmitting}
+          onCancel={() => setFormModalOpen(false)}
+          onSubmit={handleCreateSubmit}
+        />
+      )}
+
+      {toast && (
+        <div
+          className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 shadow-lg text-white text-sm font-medium ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">
+            {toast.type === 'success' ? 'check_circle' : 'error'}
+          </span>
+          {toast.message}
+          <button type="button" onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
         </div>
       )}
     </div>

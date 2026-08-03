@@ -234,3 +234,66 @@ describe('CashDrawersView — search and filters', () => {
   });
 });
 
+describe('CashDrawersView — Open Cash Drawer', () => {
+  it('opens the create modal, validates fields, and submits a new session', async () => {
+    mockFetchOnce([]);
+    render(<CashDrawersView />);
+    await screen.findByTestId('cash-drawers-empty-state');
+
+    await userEvent.click(screen.getByRole('button', { name: /open cash drawer/i }));
+    const submitButton = screen.getByRole('button', { name: /open drawer/i });
+    expect(submitButton).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText(/shift id/i), '3');
+    await userEvent.type(screen.getByLabelText(/opening balance/i), '100');
+    await userEvent.type(screen.getByLabelText(/opened by/i), '10');
+    expect(submitButton).toBeEnabled();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 201,
+        ok: true,
+        json: async () => ({ statusCode: 201, message: 'ok', data: openDrawer }),
+      }),
+    );
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/cash-drawers'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ shiftId: 3, openingBalance: 100, openedBy: 10 }),
+        }),
+      );
+    });
+    expect(await screen.findByText(/cash drawer opened successfully/i)).toBeInTheDocument();
+  });
+
+  it('shows the backend conflict message when a shift already has an open drawer', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /open cash drawer/i }));
+    await userEvent.type(screen.getByLabelText(/shift id/i), '3');
+    await userEvent.type(screen.getByLabelText(/opening balance/i), '100');
+    await userEvent.type(screen.getByLabelText(/opened by/i), '10');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 409,
+        ok: false,
+        json: async () => ({ message: 'There is already an open cash drawer for this shift' }),
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /open drawer/i }));
+
+    expect(
+      await screen.findByText(/there is already an open cash drawer for this shift/i),
+    ).toBeInTheDocument();
+  });
+});
+
