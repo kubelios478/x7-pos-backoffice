@@ -169,7 +169,7 @@ export const CashDrawersView: React.FC = () => {
         </div>
       )}
 
-      {(loading || drawers.length > 0) && !isTrueEmpty && (
+      {(loading || drawers.length > 0 || isFilteredEmpty) && !isTrueEmpty && (
         <div className="bg-white border border-[#e8e2d8] overflow-hidden rounded shadow-sm">
           <div className="p-4 bg-[#222222] flex justify-between items-center">
             <span className="text-[11px] font-bold text-white uppercase tracking-widest">

@@ -207,5 +207,30 @@ describe('CashDrawersView — search and filters', () => {
 
     expect(screen.getByText('#CD-1')).toBeInTheDocument();
   });
+
+  it('shows the filtered-empty state and a clear-filters action when a server-side filter legitimately returns zero rows', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    mockFetchOnce([]);
+    await userEvent.selectOptions(screen.getByLabelText(/filter by status/i), 'Pause');
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('status=Pause'),
+        expect.anything(),
+      );
+    });
+
+    expect(screen.getByText(/no cash drawer sessions match your active filters/i)).toBeInTheDocument();
+    const clearButton = screen.getByRole('button', { name: /clear filters/i });
+    expect(clearButton).toBeInTheDocument();
+
+    mockFetchOnce([openDrawer]);
+    await userEvent.click(clearButton);
+
+    expect(await screen.findByText('#CD-1')).toBeInTheDocument();
+  });
 });
 
