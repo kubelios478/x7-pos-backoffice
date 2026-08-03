@@ -68,9 +68,9 @@ order-payments|Order Payments terminal|pos|1|0
 order-taxes|Order Taxes calculations|pos|1|0
 orders|Orders Hub Core|pos|1|0
 order-item-modifiers|Order Item Modifiers logic|pos|1|0
-cash-drawer-history|Cash Drawer History logs|cash-drawers|1|0
-cash-drawers|Cash Drawers sessions|cash-drawers|1|0
-cash-transactions|Cash Transactions journal|cash-drawers|1|0
+cash-drawer-history|Cash Drawer History logs|cash-drawers|2|0
+cash-drawers|Cash Drawers sessions|cash-drawers|2|0
+cash-transactions|Cash Transactions journal|cash-drawers|2|0
 shift-assignment|Shift Assignment matrix|shifts|2|0
 shifts|Shifts Scheduler|shifts|2|0
 tip-movements|Tip movements history|tips|2|0
