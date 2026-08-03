@@ -136,6 +136,12 @@ describe('CashDrawersView — grid rendering', () => {
     expect(screen.queryByText('1')).not.toBeInTheDocument();
     expect(screen.queryByText('10')).not.toBeInTheDocument();
   });
+
+  it('formats currency correctly for values with a thousands separator, even when the API sends numeric strings', async () => {
+    mockFetchOnce([{ ...openDrawer, id: 3, openingBalance: '12345.00' as unknown as number }]);
+    render(<CashDrawersView />);
+    expect(await screen.findByText('$12,345.00')).toBeInTheDocument();
+  });
 });
 
 describe('CashDrawersView — true empty state', () => {

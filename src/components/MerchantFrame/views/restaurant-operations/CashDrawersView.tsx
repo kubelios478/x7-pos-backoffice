@@ -17,7 +17,7 @@ export const STATUS_BADGE_CLASSES: Record<CashDrawerStatus, string> = {
 };
 
 export function formatCurrency(n: number): string {
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatDateTime(value: string): string {
