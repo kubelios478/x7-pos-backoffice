@@ -44,4 +44,39 @@ describe('QuickLaunchPanel', () => {
     await user.click(screen.getByRole('button', { name: /open module/i }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it('renders an active action as non-interactive text with aria-current, not a button', () => {
+    const onActive = vi.fn();
+    const onOther = vi.fn();
+
+    render(
+      <QuickLaunchPanel
+        description="Test shortcuts."
+        actions={[
+          { id: 'current', label: 'CURRENT VIEW', onClick: onActive, active: true },
+          { id: 'other', label: 'OTHER VIEW', onClick: onOther },
+        ]}
+      />,
+    );
+
+    const activeAnchor = screen.getByText('CURRENT VIEW');
+    expect(activeAnchor).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('button', { name: /current view/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /other view/i })).toBeInTheDocument();
+  });
+
+  it('does not fire onClick for an active action even when clicked', async () => {
+    const user = userEvent.setup();
+    const onActive = vi.fn();
+
+    render(
+      <QuickLaunchPanel
+        description="Test shortcuts."
+        actions={[{ label: 'CURRENT VIEW', onClick: onActive, active: true }]}
+      />,
+    );
+
+    await user.click(screen.getByText('CURRENT VIEW'));
+    expect(onActive).not.toHaveBeenCalled();
+  });
 });

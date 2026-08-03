@@ -5,6 +5,7 @@ export type QuickLaunchAction = {
   label: string;
   onClick: () => void;
   variant?: 'default' | 'danger';
+  active?: boolean;
 };
 
 type QuickLaunchPanelProps = {
@@ -31,6 +32,18 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
 
       <div className="flex flex-wrap justify-center md:justify-end gap-3">
         {actions.map((action) => {
+          if (action.active) {
+            return (
+              <span
+                key={action.id ?? action.label}
+                aria-current="page"
+                className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps cursor-default"
+              >
+                {action.label}
+              </span>
+            );
+          }
+
           const isDanger = action.variant === 'danger';
 
           return (
