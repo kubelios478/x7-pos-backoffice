@@ -50,6 +50,7 @@ import { TaxRulesView } from './views/TaxRulesView';
 import { TipRulesView } from './views/TipRulesView';
 import { OvertimeRulesView } from './views/OvertimeRulesView';
 import { PayrollRulesView } from './views/PayrollRulesView';
+import { CashDrawersView } from './views/restaurant-operations/CashDrawersView';
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
 import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
 import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
@@ -485,6 +486,10 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'merchant-payroll-rules') {
       return <PayrollRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-drawers') {
+      return <CashDrawersView />;
     }
 
     if (activeTab === 'ledger-accounts') {
