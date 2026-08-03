@@ -266,6 +266,57 @@ describe('CashDrawersView — search and filters', () => {
     vi.useRealTimers();
   });
 
+  it('recovers from a stuck skeleton when Clear Filters is clicked immediately after typing a shiftId, before the debounce commits (regression)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    // A single stable mock (not mockFetchOnce) so its call count accumulates
+    // correctly across the whole interaction.
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({ statusCode: 200, message: 'ok', data: [openDrawer] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    const callsBeforeInteraction = fetchMock.mock.calls.length;
+
+    // Type into the Shift ID filter, then click Clear Filters *immediately*
+    // — well within the 300ms debounce window, before debouncedShiftIdFilter
+    // has caught up to what was typed. This is the exact race that used to
+    // leave `loading` stuck true forever (the effect never noticing '' -> ''
+    // as a change and thus never firing the fetch that flips it back).
+    const shiftIdInput = screen.getByLabelText(/filter by shift id/i);
+    await user.type(shiftIdInput, '5');
+    await user.click(screen.getByRole('button', { name: 'Clear Filters' }));
+
+    // No stuck skeleton: loading must resolve back to false once the fetch
+    // clearFilters triggers explicitly resolves.
+    await vi.runAllTimersAsync();
+    await waitFor(() => {
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+    });
+
+    // The grid is back to its real, unfiltered state.
+    expect(await screen.findByText('#CD-1')).toBeInTheDocument();
+    expect(shiftIdInput).toHaveValue(null);
+    expect(screen.queryByRole('button', { name: 'Clear Filters' })).not.toBeInTheDocument();
+
+    // Exactly one additional fetch happened for the whole clear-filters
+    // action — no duplicate/racing fetch from the debounce effect also
+    // noticing a (would-be) dependency change.
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeInteraction + 1);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.stringContaining('/cash-drawers?limit=100&sortBy=createdAt&sortOrder=DESC'),
+      expect.anything(),
+    );
+
+    vi.useRealTimers();
+  });
+
   it('ignores a stale in-flight response when a newer filter request has already superseded it', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);

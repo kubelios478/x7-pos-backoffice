@@ -330,6 +330,15 @@ export const CashDrawersView: React.FC = () => {
   const [shiftIdFilter, setShiftIdFilter] = useState('');
   const [debouncedShiftIdFilter, setDebouncedShiftIdFilter] = useState('');
   const latestRequestIdRef = useRef(0);
+  // Handle of the pending debounce setTimeout, so clearFilters can cancel it
+  // outright instead of hoping it settles into a harmless no-op later.
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set by clearFilters immediately before it changes statusFilter/
+  // debouncedShiftIdFilter, but only when it knows the effect below will
+  // actually rerun as a result. Lets clearFilters fire its own guaranteed
+  // fetch without also getting a second, redundant one from the effect
+  // noticing the same state change.
+  const skipNextFilterEffectFetchRef = useRef(false);
 
   // Debounce the shift ID filter before it participates in the server fetch, so
   // typing multiple digits doesn't fire a request per keystroke.
@@ -337,10 +346,13 @@ export const CashDrawersView: React.FC = () => {
     const handler = setTimeout(() => {
       setDebouncedShiftIdFilter(shiftIdFilter);
     }, 300);
+    debounceTimeoutRef.current = handler;
     return () => clearTimeout(handler);
   }, [shiftIdFilter]);
 
-  const fetchCashDrawers = async () => {
+  const fetchCashDrawers = async (overrides?: { status?: '' | CashDrawerStatus; shiftId?: string }) => {
+    const effectiveStatus = overrides?.status ?? statusFilter;
+    const effectiveShiftId = overrides?.shiftId ?? debouncedShiftIdFilter;
     const requestId = ++latestRequestIdRef.current;
     setLoading(true);
     setError(null);
@@ -350,8 +362,8 @@ export const CashDrawersView: React.FC = () => {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const params = new URLSearchParams({ limit: '100', sortBy: 'createdAt', sortOrder: 'DESC' });
-      if (statusFilter) params.set('status', statusFilter);
-      if (debouncedShiftIdFilter.trim()) params.set('shiftId', debouncedShiftIdFilter.trim());
+      if (effectiveStatus) params.set('status', effectiveStatus);
+      if (effectiveShiftId.trim()) params.set('shiftId', effectiveShiftId.trim());
       const res = await fetch(`${API_BASE}/cash-drawers?${params.toString()}`, { headers });
 
       if (res.status === 401) {
@@ -378,6 +390,12 @@ export const CashDrawersView: React.FC = () => {
   };
 
   useEffect(() => {
+    if (skipNextFilterEffectFetchRef.current) {
+      // clearFilters already fired the fetch this rerun would have fired,
+      // with the same (cleared) values — skip so we don't double-fetch.
+      skipNextFilterEffectFetchRef.current = false;
+      return;
+    }
     fetchCashDrawers();
   }, [statusFilter, debouncedShiftIdFilter]);
 
@@ -402,18 +420,55 @@ export const CashDrawersView: React.FC = () => {
   const isFilteredEmpty = !loading && !error && hasActiveFilter && filteredDrawers.length === 0;
 
   const clearFilters = () => {
+    // Cancel any pending debounce timeout outright. If the user typed into
+    // the Shift ID filter within the last 300ms, that timer is still queued
+    // to commit whatever was typed into debouncedShiftIdFilter. Left alone
+    // it would fire *after* this function runs — at best a harmless no-op,
+    // but if the user types again immediately after clicking Clear Filters
+    // it could otherwise clobber the fresh input with a stale value. Clearing
+    // it here removes that risk entirely.
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+
     // Only force the loading state when a server-side filter (status/shiftId)
-    // is actually being cleared — that's the only case that triggers a
-    // refetch (via the effect below) and would otherwise flash the
-    // true-empty state for a frame. Clearing a client-side-only search
-    // filter doesn't refetch anything, so forcing loading here would leave
-    // it stuck true forever.
-    if (statusFilter || shiftIdFilter) {
+    // is actually being cleared — that's the only case that needs a refetch,
+    // and would otherwise flash the true-empty state for a frame. Clearing a
+    // client-side-only search filter doesn't refetch anything, so forcing
+    // loading here would leave it stuck true forever.
+    const hadServerFilter = Boolean(statusFilter || shiftIdFilter);
+    if (hadServerFilter) {
       setLoading(true);
     }
     setSearchQuery('');
-    setStatusFilter('');
-    setShiftIdFilter('');
+
+    if (hadServerFilter) {
+      // Whether the fetch effect above actually reruns depends on whether
+      // resetting statusFilter/debouncedShiftIdFilter to '' changes their
+      // *current* value — not on shiftIdFilter (also reset here, but not an
+      // effect dependency). If the user just typed a shiftId and the 300ms
+      // debounce hasn't committed yet, debouncedShiftIdFilter can already be
+      // '' even though shiftIdFilter (and hasActiveFilter) is not — in that
+      // exact case neither dependency actually changes, so the effect would
+      // never rerun and a loading=true set above would be stuck forever.
+      // Don't depend on React's dependency-diffing to decide whether a fetch
+      // happens: fetch explicitly, with the cleared values, every time. Only
+      // pre-arm the "skip the effect's own fetch" guard when we know the
+      // effect will actually fire, so we never end up firing two.
+      const effectWillRerun = statusFilter !== '' || debouncedShiftIdFilter !== '';
+      if (effectWillRerun) {
+        skipNextFilterEffectFetchRef.current = true;
+      }
+      setStatusFilter('');
+      setShiftIdFilter('');
+      setDebouncedShiftIdFilter('');
+      fetchCashDrawers({ status: '', shiftId: '' });
+    } else {
+      setStatusFilter('');
+      setShiftIdFilter('');
+      setDebouncedShiftIdFilter('');
+    }
   };
 
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -539,7 +594,7 @@ export const CashDrawersView: React.FC = () => {
         <p className="mt-3 text-red-700 font-medium">{error}</p>
         <button
           type="button"
-          onClick={fetchCashDrawers}
+          onClick={() => fetchCashDrawers()}
           className="mt-4 px-4 py-2 bg-[#222222] text-white font-bold text-[11px] uppercase tracking-widest hover:bg-[#ae001a] transition-colors"
         >
           Retry Connection
