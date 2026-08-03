@@ -33,7 +33,7 @@ Full design context: `docs/superpowers/specs/2026-08-03-quick-links-quick-launch
 - Consumes: nothing new (this is the base component).
 - Produces: `QuickLaunchAction.active?: boolean`. When `true`, `QuickLaunchPanel` renders that action as a non-interactive `<span aria-current="page">` styled `bg-[#ae001a] text-white`, ignoring `variant` and never calling `onClick`. This is what Task 2 and Task 3 rely on.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to the end of `src/components/MerchantFrame/shared/QuickLaunchPanel.test.tsx` (inside the existing `describe('QuickLaunchPanel', ...)` block, after the existing two `it(...)` blocks):
 
@@ -74,12 +74,12 @@ Add to the end of `src/components/MerchantFrame/shared/QuickLaunchPanel.test.tsx
   });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run src/components/MerchantFrame/shared/QuickLaunchPanel.test.tsx`
 Expected: the two new tests FAIL (`active` is not a recognized prop yet, so both actions render as plain buttons — `queryByRole('button', { name: /current view/i })` finds one instead of `null`, and `toHaveAttribute('aria-current', 'page')` fails since no such attribute exists).
 
-- [ ] **Step 3: Implement `active` support**
+- [x] **Step 3: Implement `active` support**
 
 Replace the full contents of `src/components/MerchantFrame/shared/QuickLaunchPanel.tsx` with:
 
@@ -153,12 +153,12 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
 };
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run src/components/MerchantFrame/shared/QuickLaunchPanel.test.tsx`
 Expected: all 4 tests PASS (the 2 pre-existing plus the 2 new ones).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/MerchantFrame/shared/QuickLaunchPanel.tsx src/components/MerchantFrame/shared/QuickLaunchPanel.test.tsx
@@ -177,7 +177,7 @@ git commit -m "feat(shared): add active state support to QuickLaunchPanel"
 - Consumes: `QuickLaunchPanel` and `QuickLaunchAction` from Task 1 (`src/components/MerchantFrame/shared/QuickLaunchPanel.tsx`).
 - Produces: `RuleConfigQuickLinks` keeps its existing exported signature — `React.FC<{ activeRule: 'tax' | 'payroll' | 'overtime' | 'tips'; onNavigate?: (view: string) => void }>` — so `TaxRulesView.tsx`, `PayrollRulesView.tsx`, `OvertimeRulesView.tsx`, and the Tips view do not need any changes.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `src/components/MerchantFrame/views/TaxRulesView.test.tsx`, inside the `describe('TaxRulesView — cross-configuration quick links', ...)` block, add this test right after the existing `it('renders all four shortcut anchors', ...)` test (around line 619):
 
@@ -196,12 +196,12 @@ In `src/components/MerchantFrame/views/TaxRulesView.test.tsx`, inside the `descr
   });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/MerchantFrame/views/TaxRulesView.test.tsx -t "Quick Launch panel"`
 Expected: FAIL — the current `RuleConfigQuickLinks` renders neither "Rule Configuration Shortcuts" nor the description text.
 
-- [ ] **Step 3: Rewrite `RuleConfigQuickLinks.tsx`**
+- [x] **Step 3: Rewrite `RuleConfigQuickLinks.tsx`**
 
 Replace the full contents of `src/components/MerchantFrame/views/RuleConfigQuickLinks.tsx` with:
 
@@ -247,12 +247,12 @@ export const RuleConfigQuickLinks: React.FC<RuleConfigQuickLinksProps> = ({ acti
 export default RuleConfigQuickLinks;
 ```
 
-- [ ] **Step 4: Run the affected test suites to verify everything passes**
+- [x] **Step 4: Run the affected test suites to verify everything passes**
 
 Run: `npx vitest run src/components/MerchantFrame/views/TaxRulesView.test.tsx src/components/MerchantFrame/views/PayrollRulesView.test.tsx src/components/MerchantFrame/views/TipRulesView.test.tsx src/components/MerchantFrame/views/OvertimeRulesView.test.tsx`
 Expected: all tests PASS, including the new one from Step 1 and every pre-existing quick-links test (anchor labels, active-anchor-not-a-button, `onNavigate` calls with the right feature id). None of these pre-existing tests assert on icons, so none should need edits — if any unexpectedly fail, read the failure output before changing test code; don't assume the test is wrong.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/MerchantFrame/views/RuleConfigQuickLinks.tsx src/components/MerchantFrame/views/TaxRulesView.test.tsx
@@ -271,7 +271,7 @@ git commit -m "feat(merchant-rules): convert RuleConfigQuickLinks to Quick Launc
 - Consumes: `QuickLaunchPanel` and `QuickLaunchAction` from Task 1.
 - Produces: `LedgerQuickLinks` keeps its existing exported signature — `React.FC<{ current?: string; onNavigate?: (view: string) => void }>`, default `current = 'ledger-accounts'` — so `LedgerAccountsView.tsx`, `JournalEntriesView.tsx`, and `JournalEntryLinesView.tsx` do not need any changes.
 
-- [ ] **Step 1: Write the failing test (replace the icon-asserting test)**
+- [x] **Step 1: Write the failing test (replace the icon-asserting test)**
 
 In `src/components/MerchantFrame/views/financial-engine/LedgerAccountsView.test.tsx`, replace this existing test (lines 573-587):
 
@@ -315,12 +315,12 @@ with:
   });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/MerchantFrame/views/financial-engine/LedgerAccountsView.test.tsx -t "panel title and description"`
 Expected: FAIL — the current `LedgerQuickLinks` renders neither "Accounting Workspace Shortcuts" nor the description text (and the old icon-ligature assertions are gone, so that part is moot).
 
-- [ ] **Step 3: Rewrite `LedgerQuickLinks.tsx`**
+- [x] **Step 3: Rewrite `LedgerQuickLinks.tsx`**
 
 Replace the full contents of `src/components/MerchantFrame/views/financial-engine/LedgerQuickLinks.tsx` with:
 
@@ -371,12 +371,12 @@ export const LedgerQuickLinks: React.FC<LedgerQuickLinksProps> = ({
 export default LedgerQuickLinks;
 ```
 
-- [ ] **Step 4: Run the affected test suites to verify everything passes**
+- [x] **Step 4: Run the affected test suites to verify everything passes**
 
 Run: `npx vitest run src/components/MerchantFrame/views/financial-engine/LedgerAccountsView.test.tsx src/components/MerchantFrame/views/financial-engine/JournalEntriesView.test.tsx src/components/MerchantFrame/views/financial-engine/JournalEntryLinesView.test.tsx`
 Expected: all tests PASS, including the rewritten one from Step 1. `JournalEntriesView.test.tsx` and `JournalEntryLinesView.test.tsx` don't assert on icons today, so they should pass unmodified — if any unexpectedly fail, read the failure output before changing test code.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/MerchantFrame/views/financial-engine/LedgerQuickLinks.tsx src/components/MerchantFrame/views/financial-engine/LedgerAccountsView.test.tsx
@@ -393,12 +393,12 @@ git commit -m "feat(financial-engine): convert LedgerQuickLinks to Quick Launch 
 - Consumes: the completed Task 1, 2, and 3 changes.
 - Produces: nothing new — this is the final gate before calling the plan done.
 
-- [ ] **Step 1: Run the full test suite**
+- [x] **Step 1: Run the full test suite**
 
 Run: `npm test`
 Expected: PASS, 0 failures. If any test outside the files touched in Tasks 1-3 fails, investigate before proceeding — do not assume it's unrelated flakiness without checking (see `reference-backend-known-test-failures`-style precedent: only pre-existing, already-documented flaky failures are acceptable to ignore, and only after confirming they're unrelated to this change).
 
-- [ ] **Step 2: Run the real TypeScript build check**
+- [x] **Step 2: Run the real TypeScript build check**
 
 Run: `npx tsc --build --noEmit --force`
 
@@ -406,10 +406,10 @@ Run: `npx tsc --build --noEmit --force`
 
 Expected: no output, exit code 0.
 
-- [ ] **Step 3: Manual visual smoke check**
+- [x] **Step 3: Manual visual smoke check**
 
 Start the dev server (`npm run dev`) and open each of the 7 affected views (Tax/Payroll/Overtime/Tips Rules, Ledger Accounts/Journal Entries/Journal Entry Lines) in a real browser. Confirm: the panel renders as a dark card with title/description/buttons, the current view's button is solid red and not clickable, the other buttons navigate correctly, and nothing overlaps/wraps oddly at typical viewport widths. No subagent in this pipeline has browser access — this step is for the user to confirm, matching this project's established practice of not claiming a UI change "done" without a real-browser check.
 
-- [ ] **Step 4: Report status**
+- [x] **Step 4: Report status**
 
 No commit for this task (verification only). If Steps 1-2 are clean and Step 3 is confirmed, the plan is complete.
