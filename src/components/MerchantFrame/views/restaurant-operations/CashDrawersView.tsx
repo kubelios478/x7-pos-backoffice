@@ -23,6 +23,9 @@ export const CashDrawersView: React.FC = () => {
   const [drawers, setDrawers] = useState<CashDrawer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | CashDrawerStatus>('');
+  const [shiftIdFilter, setShiftIdFilter] = useState('');
 
   const fetchCashDrawers = async () => {
     setLoading(true);
@@ -33,6 +36,8 @@ export const CashDrawersView: React.FC = () => {
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const params = new URLSearchParams({ limit: '100', sortBy: 'createdAt', sortOrder: 'DESC' });
+      if (statusFilter) params.set('status', statusFilter);
+      if (shiftIdFilter.trim()) params.set('shiftId', shiftIdFilter.trim());
       const res = await fetch(`${API_BASE}/cash-drawers?${params.toString()}`, { headers });
 
       if (res.status === 401) {
@@ -57,9 +62,35 @@ export const CashDrawersView: React.FC = () => {
 
   useEffect(() => {
     fetchCashDrawers();
-  }, []);
+  }, [statusFilter, shiftIdFilter]);
 
-  const isTrueEmpty = !loading && !error && drawers.length === 0;
+  const filteredDrawers = React.useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    if (!term) return drawers;
+    return drawers.filter((drawer) => {
+      const sessionId = `#cd-${drawer.id}`;
+      const openedByName = drawer.openedByCollaborator.name.toLowerCase();
+      const closedByName = drawer.closedByCollaborator?.name.toLowerCase() ?? '';
+      const shiftName = drawer.shift.name.toLowerCase();
+      return (
+        sessionId.includes(term) ||
+        openedByName.includes(term) ||
+        closedByName.includes(term) ||
+        shiftName.includes(term)
+      );
+    });
+  }, [drawers, searchQuery]);
+
+  const hasActiveFilter = Boolean(searchQuery || statusFilter || shiftIdFilter);
+  const isFilteredEmpty = !loading && !error && hasActiveFilter && filteredDrawers.length === 0;
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
+    setShiftIdFilter('');
+  };
+
+  const isTrueEmpty = !loading && !error && drawers.length === 0 && !hasActiveFilter;
 
   if (error) {
     return (
@@ -81,6 +112,50 @@ export const CashDrawersView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5f5e5e]">
+            search
+          </span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by staff name, shift, or session ID..."
+            className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-sm transition-all"
+            aria-label="Search cash drawer sessions"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as '' | CashDrawerStatus)}
+          className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by status"
+        >
+          <option value="">All Statuses</option>
+          <option value="Open">Open</option>
+          <option value="Close">Closed</option>
+          <option value="Pause">Pause</option>
+        </select>
+        <input
+          type="number"
+          value={shiftIdFilter}
+          onChange={(e) => setShiftIdFilter(e.target.value)}
+          placeholder="Shift ID"
+          className="w-28 px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by shift ID"
+        />
+        {hasActiveFilter && !isFilteredEmpty && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
       {isTrueEmpty && (
         <div
           data-testid="cash-drawers-empty-state"
@@ -101,7 +176,7 @@ export const CashDrawersView: React.FC = () => {
               CASH DRAWER SESSIONS
             </span>
             <span className="text-white/50 text-xs">
-              {loading ? 'Loading...' : `${drawers.length} sessions`}
+              {loading ? 'Loading...' : `${filteredDrawers.length} sessions`}
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -144,7 +219,21 @@ export const CashDrawersView: React.FC = () => {
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-14 mx-auto" /></td>
                       </tr>
                     ))
-                  : drawers.map((drawer) => (
+                  : isFilteredEmpty
+                  ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-10 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <span className="material-symbols-outlined text-[#5f5e5e] text-4xl">search_off</span>
+                          <p className="text-sm text-[#5f5e5e]">No cash drawer sessions match your active filters</p>
+                          <button type="button" onClick={clearFilters} className="text-[#ae001a] text-sm font-semibold hover:underline">
+                            Clear filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                  : filteredDrawers.map((drawer) => (
                       <tr key={drawer.id} data-testid={`cash-drawer-row-${drawer.id}`} className="hover:bg-[#f8f3eb] transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-bold text-[#1d1c17]">

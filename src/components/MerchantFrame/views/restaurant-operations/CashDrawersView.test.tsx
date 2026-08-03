@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CashDrawersView } from './CashDrawersView';
 import type { CashDrawer } from '../../../../types/cash-drawer';
@@ -120,7 +121,7 @@ describe('CashDrawersView — grid rendering', () => {
     expect(screen.getByText('--')).toBeInTheDocument();
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.getByText('In Service')).toBeInTheDocument();
-    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getAllByText('Open').length).toBeGreaterThan(0);
 
     expect(screen.getByText('$150.50')).toBeInTheDocument();
     expect(screen.getByText('Jane Smith')).toBeInTheDocument();
@@ -146,6 +147,65 @@ describe('CashDrawersView — true empty state', () => {
     expect(
       screen.getByText(/No cash drawer sessions found\. Click 'Open Cash Drawer' to initialize a new drawer session\./i),
     ).toBeInTheDocument();
+  });
+});
+
+describe('CashDrawersView — search and filters', () => {
+  it('filters by search text against opener name, closer name, shift name, and session id', async () => {
+    mockFetchOnce([openDrawer, closedDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.type(screen.getByLabelText(/search cash drawer sessions/i), 'Jane');
+
+    expect(screen.queryByText('#CD-1')).not.toBeInTheDocument();
+    expect(screen.getByText('#CD-2')).toBeInTheDocument();
+  });
+
+  it('refetches with a status query param when the status filter changes', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    mockFetchOnce([openDrawer]);
+    await userEvent.selectOptions(screen.getByLabelText(/filter by status/i), 'Open');
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('status=Open'),
+        expect.anything(),
+      );
+    });
+  });
+
+  it('refetches with a shiftId query param when the shift ID filter changes', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    mockFetchOnce([openDrawer]);
+    await userEvent.type(screen.getByLabelText(/filter by shift id/i), '3');
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('shiftId=3'),
+        expect.anything(),
+      );
+    });
+  });
+
+  it('shows the filtered-empty state and a clear-filters action when a filter matches nothing', async () => {
+    mockFetchOnce([openDrawer, closedDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.type(screen.getByLabelText(/search cash drawer sessions/i), 'nonexistent-name');
+
+    expect(screen.getByText(/no cash drawer sessions match your active filters/i)).toBeInTheDocument();
+    const clearButton = screen.getByRole('button', { name: /clear filters/i });
+    await userEvent.click(clearButton);
+
+    expect(screen.getByText('#CD-1')).toBeInTheDocument();
   });
 });
 
