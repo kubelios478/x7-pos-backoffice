@@ -46,7 +46,7 @@ async function bootstrap(page: Page, invoices = [SEED_INVOICE]) {
 
   // Matchers por pathname (ignoran el query string ?companyId=...).
   await page.route(
-    (url) => url.pathname === '/api/suppliers',
+    (url) => url.pathname === '/api/v1/inventory/suppliers',
     (route) => route.fulfill(json({ data: SUPPLIERS })),
   );
 

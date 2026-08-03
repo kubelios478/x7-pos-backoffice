@@ -1,10 +1,12 @@
 import React from 'react';
+import { QuickLaunchPanel } from '../shared/QuickLaunchPanel';
 
 export type AccountsPayableAnchorKey =
   | 'invoices'
   | 'items'
   | 'credit-notes'
-  | 'payments';
+  | 'payments'
+  | 'allocations';
 
 interface AccountsPayableQuickLinksProps {
   active: AccountsPayableAnchorKey;
@@ -12,56 +14,34 @@ interface AccountsPayableQuickLinksProps {
 }
 
 // Cada anchor mapea a un featureId de Features.txt que MerchantFrame resuelve vía onNavigate.
-// La "ruta" descrita en las historias es conceptual: la navegación SPA es por estado (activeTab).
 const AP_ANCHORS: Array<{
   key: AccountsPayableAnchorKey;
   label: string;
-  icon: string;
   featureId: string;
 }> = [
-  { key: 'invoices', label: 'SUPPLIER INVOICES', icon: 'receipt', featureId: 'supplier-invoices' },
-  { key: 'items', label: 'INVOICE LINE ITEMS', icon: 'list_alt', featureId: 'supplier-invoice-items' },
-  { key: 'credit-notes', label: 'CREDIT NOTES', icon: 'assignment_return', featureId: 'supplier-credit-notes' },
-  { key: 'payments', label: 'PAYMENTS & DISBURSEMENTS', icon: 'payments', featureId: 'supplier-payments' },
+  { key: 'invoices', label: 'SUPPLIER INVOICES', featureId: 'supplier-invoices' },
+  { key: 'items', label: 'INVOICE LINE ITEMS', featureId: 'supplier-invoice-items' },
+  { key: 'credit-notes', label: 'CREDIT NOTES', featureId: 'supplier-credit-notes' },
+  { key: 'payments', label: 'PAYMENTS & DISBURSEMENTS', featureId: 'supplier-payments' },
+  { key: 'allocations', label: 'PAYMENT ALLOCATIONS', featureId: 'supplier-payments-allocation' },
 ];
 
+// Reutiliza el panel común de quick-launch (mismo componente que Suppliers, Products y el SaaS).
+// Muestra accesos directos a los OTROS workspaces de Accounts Payable (excluye el activo, que es
+// donde ya estás — el contexto activo se ve en el breadcrumb superior).
 export const AccountsPayableQuickLinks: React.FC<AccountsPayableQuickLinksProps> = ({
   active,
   onNavigate,
-}) => {
-  return (
-    <nav
-      aria-label="Accounts payable shortcuts"
-      className="bg-white border border-[#e8e2d8] rounded shadow-sm px-6 py-4 flex flex-wrap items-center gap-6 font-sans"
-    >
-      {AP_ANCHORS.map((anchor) => {
-        const isActive = anchor.key === active;
-        if (isActive) {
-          return (
-            <span
-              key={anchor.key}
-              aria-current="page"
-              className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#ae001a] underline underline-offset-4"
-            >
-              <span className="material-symbols-outlined text-base">{anchor.icon}</span>
-              {anchor.label}
-            </span>
-          );
-        }
-        return (
-          <button
-            key={anchor.key}
-            type="button"
-            onClick={() => onNavigate?.(anchor.featureId)}
-            className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200"
-          >
-            <span className="material-symbols-outlined text-base">{anchor.icon}</span>
-            {anchor.label}
-          </button>
-        );
-      })}
-    </nav>
-  );
-};
+}) => (
+  <QuickLaunchPanel
+    title="Accounts Payable"
+    description="Jump across the accounts payable workspaces — invoices, line items, credit notes, payments, and allocations."
+    actions={AP_ANCHORS.filter((anchor) => anchor.key !== active).map((anchor) => ({
+      id: anchor.featureId,
+      label: anchor.label,
+      onClick: () => onNavigate?.(anchor.featureId),
+    }))}
+  />
+);
 
 export default AccountsPayableQuickLinks;
