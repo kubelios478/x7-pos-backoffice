@@ -266,6 +266,7 @@ export const CompanyProfileView: React.FC = () => {
             variant: 'danger',
             onClick: () => setIsSupportOpen(true),
           },
+          
         ]}
       />
 

@@ -29,3 +29,8 @@ dist-ssr
 
 /docs
 /.superpowers
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

@@ -40,6 +40,8 @@ interface ConfirmStatusToggleDialogProps {
   submitting: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  /** Optional override for the confirmation body copy. */
+  description?: string;
 }
 
 export const ConfirmStatusToggleDialog: React.FC<ConfirmStatusToggleDialogProps> = ({
@@ -48,12 +50,15 @@ export const ConfirmStatusToggleDialog: React.FC<ConfirmStatusToggleDialogProps>
   submitting,
   onConfirm,
   onClose,
+  description,
 }) => {
   const isDeactivate = direction === 'deactivate';
   const title = isDeactivate ? 'DEACTIVATE' : 'ACTIVATE';
-  const bodyText = isDeactivate
-    ? `Deactivating "${entityName}" will set its status to inactive. It will no longer be available for new use, but existing records are preserved.`
-    : `Activating "${entityName}" will set its status back to active and make it available for use again.`;
+  const bodyText =
+    description ??
+    (isDeactivate
+      ? `Deactivating "${entityName}" will set its status to inactive. It will no longer be available for new use, but existing records are preserved.`
+      : `Activating "${entityName}" will set its status back to active and make it available for use again.`);
   const buttonIdleLabel = isDeactivate ? 'Deactivate' : 'Activate';
   const buttonBusyLabel = isDeactivate ? 'Deactivating…' : 'Activating…';
 

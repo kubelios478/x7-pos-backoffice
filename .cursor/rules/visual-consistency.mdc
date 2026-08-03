@@ -1,0 +1,57 @@
+---
+description: Visual consistency & component-reuse rules for the X7 POS Backoffice frontend. Read before adding any UI, view, modal, table, button, badge, or form.
+globs:
+  - "src/**/*.tsx"
+  - "src/**/*.ts"
+alwaysApply: true
+---
+
+# X7 POS Backoffice — Visual Consistency Rules
+
+The app has **no component library** (Tailwind v4 + custom components only). To keep every
+screen looking like one product, **reuse the existing building blocks before writing new UI**.
+When you add a repeated element, extract it into a shared component instead of copy-pasting.
+
+## Design tokens (use these exact values)
+
+- `#ae001a` — primary corporate red (buttons, focus rings, accents, Quick Launch underline)
+- `#930015` / `#d2272f` — primary red hover shades
+- `#d51f2c` — bright accent red (active nav, SaaS FAB)
+- `#2a2a2a` — Quick Launch dark panel background
+- `#222222` — structural dark (sidebars, headers, modal header bar, table caption bar)
+- `#f2ede5` warm surface · `#e8e2d8` border · `#ece8e0` table head · `#f8f3eb` row hover/filter bar
+- `#5f5e5e` secondary text · `#1d1c17` primary text · `#ba1a1a` / `error` destructive
+- Status badges: active → `bg-green-500/10 text-green-600`; inactive → `bg-[#5f5e5e]/20 text-[#5f5e5e]`
+- Code/id badge: `font-mono text-[11px] text-[#5f5e5e] bg-[#f2ede5] px-1.5 py-0.5 rounded`
+- Labels: uppercase, `text-label-caps` / `text-[11px] font-bold tracking-widest`
+- Icons: Google Material Symbols only — `<span className="material-symbols-outlined">…</span>`
+
+## Reuse before rebuild
+
+- **Modals / forms** → `AppModal`, `FormField`, `ModalFormFooter`, `ModalFormError`
+  (`src/components/MerchantFrame/shared/AppModal.tsx`). Do not hand-roll `fixed inset-0` overlays.
+- **Quick Launch bar** → `QuickLaunchPanel`
+  (`src/components/MerchantFrame/shared/QuickLaunchPanel.tsx`); `danger` variant for the red action.
+- **Activate / deactivate** → `StatusToggleButton` + `ConfirmStatusToggleDialog`
+  (`src/components/SaaSFrame/views/StatusToggle.tsx`). Pass `description` to customize the warning.
+- **Emergency support** → `EmergencySupportModal` (`.../MerchantFrame/modals/QuickActionModals.tsx`).
+- **CRUD view template** → clone `MerchantDirectoryView.tsx` (merchant frame) or
+  `PlanApplicationsView.tsx` (SaaS frame): list + search/filter + add/edit modal + confirm +
+  three empty states (loading spinner, error+retry, zero-rows CTA) + filtered-empty row + FAB.
+
+## Data & forms
+
+- No form library. Validation lives in `src/lib/*-form-validation.ts` modules that export
+  `EMPTY_*_FORM`, `validate*Form`, `has*FormErrors`, `to*Payload`. Reuse `validateEmail`
+  (`email-validation.ts`) and password helpers (`reset-password.ts`).
+- API access: authenticated per-entity wrappers in `src/api/*.ts` (copy the
+  `authHeaders` + `<entity>Request` pattern from `api/merchants.ts`); SaaS views use
+  `saasService` (`src/services/saasService.ts`) via `saasApiFetch`.
+- Never use TS `enum` — the tsconfig enables `erasableSyntaxOnly`. Use `const` objects
+  plus `type X = (typeof X)[keyof typeof X]` (see `src/types/user.ts`).
+- Anchor merchant-scoped writes with `getStoredUser()?.merchant.id` (`lib/auth-storage.ts`).
+
+## Tests
+
+Colocate Vitest + Testing Library tests (`*.test.ts` / `*.test.tsx`). Unit-test pure
+helper modules (filter/validation) and add light render/smoke tests for new views.

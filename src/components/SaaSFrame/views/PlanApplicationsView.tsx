@@ -666,7 +666,7 @@ export const PlanApplicationsView: React.FC<PlanApplicationsViewProps> = ({
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex justify-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
                               <button
                                 type="button"
                                 aria-label={`Edit ${pa.application.name}`}
