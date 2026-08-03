@@ -29,6 +29,7 @@ dist-ssr
 
 /docs
 /.superpowers
+/.worktrees
 # Playwright
 /test-results/
 /playwright-report/
