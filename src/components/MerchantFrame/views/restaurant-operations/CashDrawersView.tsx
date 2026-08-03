@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
-import type { CashDrawer, CashDrawerStatus, CreateCashDrawerDto } from '../../../../types/cash-drawer';
+import type {
+  CashDrawer,
+  CashDrawerStatus,
+  CreateCashDrawerDto,
+  CloseCashDrawerDto,
+} from '../../../../types/cash-drawer';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -124,6 +129,161 @@ const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({ submi
   );
 };
 
+interface CashDrawerDetailModalProps {
+  drawer: CashDrawer;
+  onClose: () => void;
+}
+
+const CashDrawerDetailModal: React.FC<CashDrawerDetailModalProps> = ({ drawer, onClose }) => {
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-start overflow-y-auto p-2 md:pt-4 md:pb-12 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-label="Cash Drawer Details"
+        className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-md overflow-hidden animate-fade-in text-left max-h-[90vh] flex flex-col"
+      >
+        <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
+          <span className="font-bold text-[11px] uppercase tracking-widest">#CD-{drawer.id} Details</span>
+          <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-4 overflow-y-auto flex-1 text-sm">
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Merchant</p>
+            <p className="font-bold text-[#1d1c17]">{drawer.merchant.name}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Shift</p>
+              <p>{drawer.shift.name}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Shift Window</p>
+              <p>
+                {formatDateTime(drawer.shift.startTime)} – {formatDateTime(drawer.shift.endTime)}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Opening</p>
+              <p>{formatCurrency(drawer.openingBalance)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Current</p>
+              <p>{formatCurrency(drawer.currentBalance)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Closing</p>
+              <p>{drawer.closingBalance == null ? '--' : formatCurrency(drawer.closingBalance)}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Opened By</p>
+            <p>
+              {drawer.openedByCollaborator.name} ({drawer.openedByCollaborator.role}) —{' '}
+              {formatDateTime(drawer.createdAt)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Closed By</p>
+            <p>
+              {drawer.closedByCollaborator
+                ? `${drawer.closedByCollaborator.name} (${drawer.closedByCollaborator.role}) — ${formatDateTime(drawer.updatedAt)}`
+                : 'In Service'}
+            </p>
+          </div>
+          <div>
+            <span
+              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${STATUS_BADGE_CLASSES[drawer.status]}`}
+            >
+              {drawer.status}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+interface CloseCashDrawerDialogProps {
+  drawer: CashDrawer;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: (dto: CloseCashDrawerDto) => void;
+}
+
+const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({ drawer, submitting, onCancel, onConfirm }) => {
+  const [closingBalance, setClosingBalance] = useState(String(drawer.currentBalance));
+  const [closedBy, setClosedBy] = useState('');
+
+  const closingBalanceNum = parseFloat(closingBalance);
+  const closingBalanceValid = closingBalance.trim() !== '' && !isNaN(closingBalanceNum) && closingBalanceNum >= 0;
+
+  const closedByNum = parseInt(closedBy, 10);
+  const closedByValid = closedBy.trim() !== '' && Number.isInteger(closedByNum) && closedByNum > 0;
+
+  const isValid = closingBalanceValid && closedByValid;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-center p-4">
+      <div className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-sm p-6 text-left">
+        <p className="font-bold text-[#1d1c17]">Close cash drawer #CD-{drawer.id}?</p>
+        <p className="text-sm text-[#5f5e5e] mt-2">
+          Enter the final closing balance and the collaborator closing this session.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="close-drawer-balance" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+              Closing Balance ($)
+            </label>
+            <input
+              id="close-drawer-balance"
+              type="number"
+              step="0.01"
+              value={closingBalance}
+              onChange={(e) => setClosingBalance(e.target.value)}
+              className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="close-drawer-closed-by" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+              Closed By (Collaborator ID)
+            </label>
+            <input
+              id="close-drawer-closed-by"
+              type="number"
+              value={closedBy}
+              onChange={(e) => setClosedBy(e.target.value)}
+              className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!isValid || submitting}
+            onClick={() => onConfirm({ closingBalance: closingBalanceNum, closedBy: closedByNum })}
+            className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
+          >
+            Confirm Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
 export const CashDrawersView: React.FC = () => {
   const [drawers, setDrawers] = useState<CashDrawer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,6 +397,46 @@ export const CashDrawersView: React.FC = () => {
       setToast({ message: err.message || 'Failed to open cash drawer', type: 'error' });
     } finally {
       setFormSubmitting(false);
+    }
+  };
+
+  const [detailDrawer, setDetailDrawer] = useState<CashDrawer | null>(null);
+  const [closingDrawer, setClosingDrawer] = useState<CashDrawer | null>(null);
+  const [closeSubmitting, setCloseSubmitting] = useState(false);
+
+  const handleCloseSubmit = async (dto: CloseCashDrawerDto) => {
+    if (!closingDrawer) return;
+    setCloseSubmitting(true);
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/cash-drawers/${closingDrawer.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(dto),
+      });
+
+      if (res.status === 401) {
+        clearAuthSession();
+        window.location.href = '/login';
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to close cash drawer');
+      }
+
+      setDrawers((prev) => prev.map((d) => (d.id === json.data.id ? json.data : d)));
+      setClosingDrawer(null);
+      setToast({ message: 'Cash drawer closed successfully', type: 'success' });
+    } catch (err: any) {
+      setClosingDrawer(null);
+      setToast({ message: err.message || 'Failed to close cash drawer', type: 'error' });
+    } finally {
+      setCloseSubmitting(false);
     }
   };
 
@@ -372,6 +572,9 @@ export const CashDrawersView: React.FC = () => {
                   <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                     Status
                   </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e8e2d8]">
@@ -385,12 +588,13 @@ export const CashDrawersView: React.FC = () => {
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-14 mx-auto" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-14 mx-auto" /></td>
                       </tr>
                     ))
                   : isFilteredEmpty
                   ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center">
+                      <td colSpan={8} className="px-6 py-10 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <span className="material-symbols-outlined text-[#5f5e5e] text-4xl">search_off</span>
                           <p className="text-sm text-[#5f5e5e]">No cash drawer sessions match your active filters</p>
@@ -436,6 +640,28 @@ export const CashDrawersView: React.FC = () => {
                             {drawer.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDetailDrawer(drawer)}
+                              aria-label={`View cash drawer ${drawer.id} details`}
+                              className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[20px]">visibility</span>
+                            </button>
+                            {drawer.status === 'Open' && (
+                              <button
+                                type="button"
+                                onClick={() => setClosingDrawer(drawer)}
+                                aria-label={`Close cash drawer ${drawer.id}`}
+                                className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">lock</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
               </tbody>
@@ -449,6 +675,17 @@ export const CashDrawersView: React.FC = () => {
           submitting={formSubmitting}
           onCancel={() => setFormModalOpen(false)}
           onSubmit={handleCreateSubmit}
+        />
+      )}
+
+      {detailDrawer && <CashDrawerDetailModal drawer={detailDrawer} onClose={() => setDetailDrawer(null)} />}
+
+      {closingDrawer && (
+        <CloseCashDrawerDialog
+          drawer={closingDrawer}
+          submitting={closeSubmitting}
+          onCancel={() => setClosingDrawer(null)}
+          onConfirm={handleCloseSubmit}
         />
       )}
 

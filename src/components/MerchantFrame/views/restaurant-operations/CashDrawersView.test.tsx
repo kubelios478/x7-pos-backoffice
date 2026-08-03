@@ -299,3 +299,71 @@ describe('CashDrawersView — Open Cash Drawer', () => {
   });
 });
 
+describe('CashDrawersView — View Details', () => {
+  it('opens a read-only detail view showing merchant, shift window, balances, and staff roles', async () => {
+    mockFetchOnce([closedDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-2');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash drawer 2 details/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /cash drawer details/i });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('Restaurant ABC')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Alice Brown \(HOST\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Jane Smith \(MANAGER\)/)).toBeInTheDocument();
+  });
+});
+
+describe('CashDrawersView — Close Drawer', () => {
+  it('only shows the close action for Open sessions', async () => {
+    mockFetchOnce([openDrawer, closedDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    expect(screen.getByRole('button', { name: /close cash drawer 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /close cash drawer 2/i })).not.toBeInTheDocument();
+  });
+
+  it('closes a drawer with closing balance and closed by, updating the row in place', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash drawer 1/i }));
+    const confirmButton = screen.getByRole('button', { name: /confirm close/i });
+    await userEvent.clear(screen.getByLabelText(/closing balance/i));
+    await userEvent.type(screen.getByLabelText(/closing balance/i), '150.50');
+    await userEvent.type(screen.getByLabelText(/closed by/i), '11');
+
+    const closedResponse: CashDrawer = {
+      ...openDrawer,
+      closingBalance: 150.5,
+      currentBalance: 150.5,
+      status: 'Close',
+      closedByCollaborator: { id: 11, name: 'Jane Smith', role: 'MANAGER' },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 200,
+        ok: true,
+        json: async () => ({ statusCode: 200, message: 'ok', data: closedResponse }),
+      }),
+    );
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/cash-drawers/1'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ closingBalance: 150.5, closedBy: 11 }),
+        }),
+      );
+    });
+    expect(await screen.findByText(/cash drawer closed successfully/i)).toBeInTheDocument();
+    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+  });
+});
+
