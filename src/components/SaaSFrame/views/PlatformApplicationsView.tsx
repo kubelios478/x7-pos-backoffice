@@ -1,6 +1,6 @@
 //src/components/SaaSDashboard/PlatformApplicationsView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from './StatusToggle';
+import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from '../../shared/StatusToggle';
 import { saasService } from '../../../services/saasService';
 import type { Application } from '../../../types/subscription';
 

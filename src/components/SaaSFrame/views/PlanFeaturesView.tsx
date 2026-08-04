@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../../services/saasService';
 import type { PlanFeature, SubscriptionPlan, PlatformFeature } from '../../../types/subscription';
-import { StatusToggleButton, ConfirmStatusToggleDialog } from './StatusToggle';
+import { StatusToggleButton, ConfirmStatusToggleDialog } from '../../shared/StatusToggle';
 
 function isValidLimitValue(raw: string): boolean {
   return /^\d+(\.\d{1,2})?$/.test(raw.trim()) && Number(raw) > 0;

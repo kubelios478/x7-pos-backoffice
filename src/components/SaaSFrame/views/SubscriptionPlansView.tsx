@@ -1,6 +1,6 @@
 //src/components/SaaSDashboard/SubscriptionPlansView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from './StatusToggle';
+import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from '../../shared/StatusToggle';
 import { saasService } from '../../../services/saasService';
 import type { SubscriptionPlan, CreateSubscriptionPlanDto } from '../../../types/subscription';
 

@@ -50,6 +50,10 @@ import { TaxRulesView } from './views/TaxRulesView';
 import { TipRulesView } from './views/TipRulesView';
 import { OvertimeRulesView } from './views/OvertimeRulesView';
 import { PayrollRulesView } from './views/PayrollRulesView';
+import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
+import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
+import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
+import type { JournalEntry } from '../../types/accounting';
 import { SuppliersView } from './views/SuppliersView';
 import { SupplierInvoicesView } from './views/SupplierInvoicesView';
 import { SupplierInvoiceItemsView } from './views/SupplierInvoiceItemsView';
@@ -79,6 +83,7 @@ export const MerchantFrame: React.FC = () => {
   // Estados de navegación SPA
   const [activeCategory, setActiveCategory] = useState<string>('saas'); // Categoria activa
   const [activeTab, setActiveTab] = useState<string>('saas-dashboard'); // Sub-item o vista activa
+  const [linesEntryFilter, setLinesEntryFilter] = useState<JournalEntry | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
 
   // Traduce los nombres de tab internos de las vistas SaaS compartidas (SaaSFrame)
@@ -480,6 +485,35 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'merchant-payroll-rules') {
       return <PayrollRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'ledger-accounts') {
+      return <LedgerAccountsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'journal-entries') {
+      return (
+        <JournalEntriesView
+          onNavigate={(view) => setActiveTab(view)}
+          onViewLines={(entry) => {
+            setLinesEntryFilter(entry);
+            setActiveTab('journal-entries-lines');
+          }}
+        />
+      );
+    }
+
+    if (activeTab === 'journal-entries-lines') {
+      return (
+        <JournalEntryLinesView
+          entry={linesEntryFilter}
+          onClearEntry={() => setLinesEntryFilter(null)}
+          onNavigate={(view) => {
+            setLinesEntryFilter(null);
+            setActiveTab(view);
+          }}
+        />
+      );
     }
 
     if (activeTab === 'sub-plans-core') {

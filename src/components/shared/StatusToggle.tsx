@@ -1,4 +1,4 @@
-//src/components/SaaSDashboard/StatusToggle.tsx
+//src/components/shared/StatusToggle.tsx
 import React from 'react';
 
 export function normalizeStatus(status: string): 'active' | 'inactive' {
