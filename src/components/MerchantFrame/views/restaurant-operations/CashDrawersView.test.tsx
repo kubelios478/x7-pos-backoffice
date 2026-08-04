@@ -570,27 +570,24 @@ describe('CashDrawersView — Close Drawer', () => {
     expect(screen.queryByRole('button', { name: /close cash drawer 2/i })).not.toBeInTheDocument();
   });
 
-  it('closes a drawer with closing balance and closed by, closes the dialog, and refetches the list', async () => {
+  it('closes a drawer with just the closing balance, closes the dialog, and refetches the list', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
     await screen.findByText('#CD-1');
 
     await userEvent.click(screen.getByRole('button', { name: /close cash drawer 1/i }));
+    expect(screen.queryByLabelText(/closed by/i)).not.toBeInTheDocument();
     const confirmButton = screen.getByRole('button', { name: /confirm close/i });
     await userEvent.clear(screen.getByLabelText(/closing balance/i));
-    await userEvent.type(screen.getByLabelText(/closing balance/i), '150.50');
-    await userEvent.type(screen.getByLabelText(/closed by/i), '11');
+    await userEvent.type(screen.getByLabelText(/closing balance/i), '125.50');
 
     const closedResponse: CashDrawer = {
       ...openDrawer,
-      closingBalance: 150.5,
-      currentBalance: 150.5,
+      closingBalance: 125.5,
+      currentBalance: 125.5,
       status: 'Close',
       closedByCollaborator: { id: 11, name: 'Jane Smith', role: 'MANAGER' },
     };
-    // The success path refetches the list rather than splicing the PUT
-    // response into state, so the mock must answer both the PUT and the
-    // follow-up GET.
     const fetchMock = vi.fn(async (_url: unknown, options?: { method?: string }) => {
       if (options?.method === 'PUT') {
         return {
@@ -613,7 +610,7 @@ describe('CashDrawersView — Close Drawer', () => {
         expect.stringContaining('/cash-drawers/1'),
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({ closingBalance: 150.5, closedBy: 11 }),
+          body: JSON.stringify({ closingBalance: 125.5 }),
         }),
       );
     });
@@ -628,7 +625,7 @@ describe('CashDrawersView — Close Drawer', () => {
     expect(screen.getByText('Jane Smith')).toBeInTheDocument();
   });
 
-  it('shows a close-drawer error inline in the dialog, keeps it open, and preserves typed input on error', async () => {
+  it('shows a close-drawer error inline in the dialog, keeps it open, and preserves the typed closing balance on error', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
     await screen.findByText('#CD-1');
@@ -636,24 +633,43 @@ describe('CashDrawersView — Close Drawer', () => {
     await userEvent.click(screen.getByRole('button', { name: /close cash drawer 1/i }));
     await userEvent.clear(screen.getByLabelText(/closing balance/i));
     await userEvent.type(screen.getByLabelText(/closing balance/i), '150.50');
-    await userEvent.type(screen.getByLabelText(/closed by/i), '11');
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         status: 400,
         ok: false,
-        json: async () => ({ message: 'Closing balance does not reconcile with recorded transactions' }),
+        json: async () => ({ message: 'No collaborator profile is linked to your account.' }),
       }),
     );
     await userEvent.click(screen.getByRole('button', { name: /confirm close/i }));
 
-    await screen.findByText(/closing balance does not reconcile with recorded transactions/i);
+    await screen.findByText(/no collaborator profile is linked to your account/i);
 
-    // Dialog must stay mounted, error must be inline, typed values preserved.
     expect(screen.getByRole('button', { name: /confirm close/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/closing balance/i)).toHaveValue(150.5);
-    expect(screen.getByLabelText(/closed by/i)).toHaveValue(11);
+  });
+
+  it('marks the row and detail modal with a Discrepancy badge and a highlighted variance when the closing balance does not match the current balance', async () => {
+    const discrepancyDrawer: CashDrawer = {
+      ...openDrawer,
+      id: 3,
+      closingBalance: 90.0,
+      currentBalance: 100.0,
+      status: 'Discrepancy',
+      closedByCollaborator: { id: 11, name: 'Jane Smith', role: 'MANAGER' },
+    };
+    mockFetchOnce([discrepancyDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-3');
+
+    const discrepancyBadges = screen.getAllByText('Discrepancy');
+    expect(discrepancyBadges.length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash drawer 3 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash drawer details/i });
+    expect(within(dialog).getByText('Variance')).toBeInTheDocument();
+    expect(within(dialog).getByText('-$10.00')).toBeInTheDocument();
   });
 });
 

@@ -14,6 +14,7 @@ export const STATUS_BADGE_CLASSES: Record<CashDrawerStatus, string> = {
   Open: 'bg-green-500/10 text-green-600',
   Close: 'bg-[#5f5e5e]/20 text-[#5f5e5e]',
   Pause: 'bg-amber-500/10 text-amber-600',
+  Discrepancy: 'bg-orange-500/10 text-orange-700',
 };
 
 // The backend stores balances as Postgres `decimal` columns with no server-side
@@ -175,6 +176,22 @@ const CashDrawerDetailModal: React.FC<CashDrawerDetailModalProps> = ({ drawer, o
               <p>{drawer.closingBalance == null ? '--' : formatCurrency(drawer.closingBalance)}</p>
             </div>
           </div>
+          {drawer.closingBalance != null && (
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Variance</p>
+              {(() => {
+                const variance = drawer.closingBalance - drawer.currentBalance;
+                const isBalanced = variance === 0;
+                return (
+                  <p className={isBalanced ? 'text-[#1d1c17]' : 'font-bold text-orange-700'}>
+                    {isBalanced
+                      ? formatCurrency(0)
+                      : `${variance > 0 ? '+' : '-'}${formatCurrency(Math.abs(variance))}`}
+                  </p>
+                );
+              })()}
+            </div>
+          )}
           <div>
             <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Opened By</p>
             <p>
@@ -220,22 +237,18 @@ const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({
   onConfirm,
 }) => {
   const [closingBalance, setClosingBalance] = useState(String(drawer.currentBalance));
-  const [closedBy, setClosedBy] = useState('');
 
   const closingBalanceNum = parseFloat(closingBalance);
   const closingBalanceValid = closingBalance.trim() !== '' && !isNaN(closingBalanceNum) && closingBalanceNum >= 0;
 
-  const closedByNum = parseInt(closedBy, 10);
-  const closedByValid = closedBy.trim() !== '' && Number.isInteger(closedByNum) && closedByNum > 0;
-
-  const isValid = closingBalanceValid && closedByValid;
+  const isValid = closingBalanceValid;
 
   return createPortal(
     <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-center p-4">
       <div className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-sm p-6 text-left">
         <p className="font-bold text-[#1d1c17]">Close cash drawer #CD-{drawer.id}?</p>
         <p className="text-sm text-[#5f5e5e] mt-2">
-          Enter the final closing balance and the collaborator closing this session.
+          Enter the final closing balance. The closing operator is recorded automatically from your session.
         </p>
         <div className="mt-4 space-y-3">
           <div className="flex flex-col gap-1.5">
@@ -248,18 +261,6 @@ const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({
               step="0.01"
               value={closingBalance}
               onChange={(e) => setClosingBalance(e.target.value)}
-              className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="close-drawer-closed-by" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
-              Closed By (Collaborator ID)
-            </label>
-            <input
-              id="close-drawer-closed-by"
-              type="number"
-              value={closedBy}
-              onChange={(e) => setClosedBy(e.target.value)}
               className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
             />
           </div>
@@ -280,7 +281,7 @@ const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({
           <button
             type="button"
             disabled={!isValid || submitting}
-            onClick={() => onConfirm({ closingBalance: closingBalanceNum, closedBy: closedByNum })}
+            onClick={() => onConfirm({ closingBalance: closingBalanceNum })}
             className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
           >
             Confirm Close
@@ -600,6 +601,7 @@ export const CashDrawersView: React.FC = () => {
           <option value="Open">Open</option>
           <option value="Close">Close</option>
           <option value="Pause">Pause</option>
+          <option value="Discrepancy">Discrepancy</option>
         </select>
         <input
           type="number"

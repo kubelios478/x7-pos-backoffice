@@ -1,4 +1,4 @@
-export type CashDrawerStatus = 'Open' | 'Close' | 'Pause';
+export type CashDrawerStatus = 'Open' | 'Close' | 'Pause' | 'Discrepancy';
 
 export interface CashDrawerMerchantRef {
   id: number;
@@ -40,7 +40,6 @@ export interface CreateCashDrawerDto {
 
 export interface CloseCashDrawerDto {
   closingBalance: number;
-  closedBy: number;
 }
 
 export interface CashDrawerPaginationMeta {
