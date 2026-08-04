@@ -48,7 +48,23 @@ const INVOICES: SupplierInvoice[] = [
 ];
 
 const PRODUCTS: InvoiceProductRef[] = [
-  { id: 55, name: 'Coffee Beans', sku: 'CFB-1', last_cost: 48 },
+  {
+    id: 55,
+    name: 'Coffee Beans',
+    sku: 'CFB-1',
+    last_cost: 48,
+    variants: [{ id: 561, name: 'Default', sku: 'CFB-1-D', isActive: true }],
+  },
+  {
+    id: 77,
+    name: 'Tea Leaves',
+    sku: 'TEA-1',
+    last_cost: 30,
+    variants: [
+      { id: 771, name: 'Green', sku: 'TEA-G', isActive: true },
+      { id: 772, name: 'Black', sku: 'TEA-B', isActive: true },
+    ],
+  },
 ];
 
 const ITEMS: SupplierInvoiceItem[] = [
@@ -57,6 +73,7 @@ const ITEMS: SupplierInvoiceItem[] = [
     invoice_id: 1,
     invoice: { id: 1, invoice_number: 'INV-2026-0001' },
     product_id: 55,
+    variant_id: 561,
     product: { id: 55, name: 'Coffee Beans', sku: 'CFB-1' },
     description: 'Premium coffee beans',
     quantity: 10,
@@ -176,13 +193,13 @@ describe('SupplierInvoiceItemsView — grid & precision', () => {
     expect(within(row).getByText(/Coffee Beans/)).toBeInTheDocument();
   });
 
-  it('renders quantity and unit price with up to 4 decimals and money with 2', async () => {
+  it('renders quantity without trailing zeros and all money with 2 decimals', async () => {
     render(<SupplierInvoiceItemsView />);
     const row = (await screen.findByText('Premium coffee beans')).closest('tr')!;
-    expect(row).toHaveTextContent('10.0000');
-    expect(row).toHaveTextContent('$50.0000');
-    expect(row).toHaveTextContent('$595.00');
-    expect(row).toHaveTextContent('$500.00');
+    expect(row).toHaveTextContent('10 @ $50.00'); // qty trimmed, unit price money (2 dec)
+    expect(row).not.toHaveTextContent('$50.0000'); // ya no 4 decimales en dinero
+    expect(row).toHaveTextContent('$595.00'); // line_total
+    expect(row).toHaveTextContent('$500.00'); // line_subtotal
   });
 
   it('marks an unmapped line as a direct expense', async () => {
@@ -286,6 +303,52 @@ describe('SupplierInvoiceItemsView — line arithmetic', () => {
     await user.selectOptions(screen.getByLabelText(/Inventory Product/), '55');
     expect(screen.getByLabelText(/Description/)).toHaveValue('Coffee Beans');
     expect(screen.getByLabelText(/Unit Price/)).toHaveValue(48);
+    // El producto tiene una sola variante activa → se auto-selecciona.
+    expect(screen.getByLabelText(/Variant/)).toHaveValue('561');
+  });
+
+  it('sends product_id AND variant_id when a product is linked', async () => {
+    const spy = installFetch();
+    const user = userEvent.setup();
+    render(<SupplierInvoiceItemsView />);
+    await screen.findByText('Premium coffee beans');
+    await user.click(screen.getByRole('button', { name: /add item/i }));
+
+    await user.selectOptions(screen.getByLabelText(/Parent Invoice/), '1');
+    await user.selectOptions(screen.getByLabelText(/Inventory Product/), '55');
+    await user.type(screen.getByLabelText(/Quantity/), '2');
+    await user.click(screen.getByRole('button', { name: /save item/i }));
+
+    await screen.findByText('Line item added successfully');
+
+    const postCall = spy.mock.calls.find(
+      ([url, opts]) =>
+        (opts as RequestInit)?.method === 'POST' && String(url).includes('supplier-invoice-items'),
+    );
+    expect(postCall).toBeTruthy();
+    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+    expect(body.product_id).toBe(55);
+    expect(body.variant_id).toBe(561);
+  });
+
+  it('requires a variant before saving when a product with multiple variants is picked', async () => {
+    const user = userEvent.setup();
+    render(
+      <SupplierInvoiceItemsView />,
+    );
+    await screen.findByText('Premium coffee beans');
+    await user.click(screen.getByRole('button', { name: /add item/i }));
+
+    await user.selectOptions(screen.getByLabelText(/Parent Invoice/), '1');
+    await user.type(screen.getByLabelText(/Description/), 'Widget');
+    await user.type(screen.getByLabelText(/Quantity/), '2');
+    await user.type(screen.getByLabelText(/Unit Price/), '5');
+    // Selecciona un producto multi-variante → Save queda bloqueado hasta elegir variante.
+    await user.selectOptions(screen.getByLabelText(/Inventory Product/), '77');
+    expect(screen.getByRole('button', { name: /save item/i })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText(/Variant/), '772');
+    expect(screen.getByRole('button', { name: /save item/i })).toBeEnabled();
   });
 });
 
@@ -429,15 +492,17 @@ describe('SupplierInvoiceItemsView — edit & delete persistence', () => {
 });
 
 describe('SupplierInvoiceItemsView — quick links & errors', () => {
-  it('marks INVOICE LINE ITEMS as the active anchor', async () => {
+  it('excludes the active workspace and navigates from the quick-launch panel', async () => {
     installFetch();
-    render(<SupplierInvoiceItemsView />);
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(<SupplierInvoiceItemsView onNavigate={onNavigate} />);
     await screen.findByText('Premium coffee beans');
 
-    const nav = screen.getByRole('navigation', { name: /accounts payable shortcuts/i });
-    const active = within(nav).getByText('INVOICE LINE ITEMS');
-    expect(active.closest('[aria-current="page"]')).toBeInTheDocument();
-    expect(active.closest('button')).not.toBeInTheDocument();
+    // El workspace activo (line items) no se ofrece como acción del panel.
+    expect(screen.queryByRole('button', { name: /invoice line items/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /credit notes/i }));
+    expect(onNavigate).toHaveBeenCalledWith('supplier-credit-notes');
   });
 
   it('navigates to supplier invoices when the parent invoice link is clicked', async () => {

@@ -476,14 +476,12 @@ describe('SupplierInvoicesView — detail drawer', () => {
 describe('SupplierInvoicesView — quick links', () => {
   beforeEach(() => installFetch());
 
-  it('marks SUPPLIER INVOICES as the active anchor (not a button)', async () => {
+  it('excludes the active workspace (supplier invoices) from the quick-launch panel', async () => {
     render(<SupplierInvoicesView />);
     await screen.findByText('INV-2026-0001');
 
-    const nav = screen.getByRole('navigation', { name: /accounts payable shortcuts/i });
-    const active = within(nav).getByText('SUPPLIER INVOICES');
-    expect(active.closest('[aria-current="page"]')).toBeInTheDocument();
-    expect(active.closest('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^supplier invoices$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /credit notes/i })).toBeInTheDocument();
   });
 
   it('navigates to the line items feature when INVOICE LINE ITEMS is clicked', async () => {

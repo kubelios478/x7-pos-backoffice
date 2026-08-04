@@ -10,6 +10,8 @@ import type {
 } from '../../../types/accounts-payable';
 import { AccountsPayableQuickLinks } from './AccountsPayableQuickLinks';
 import { useModalDismiss } from '../../../lib/useModalDismiss';
+import { AppModal, ModalFormFooter } from '../shared/AppModal';
+import { Toast } from '../shared/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -24,7 +26,9 @@ const num = (v: number | string | null | undefined): number => {
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 // Cantidad y precio unitario se muestran con hasta 4 decimales; el dinero con 2.
-const format4 = (v: number | string | null | undefined): string => num(v).toFixed(4);
+// Cantidad: hasta 4 decimales de precisión pero SIN ceros finales (10.0000 → 10, 10.25 → 10.25).
+const formatQty = (v: number | string | null | undefined): string => String(parseFloat(num(v).toFixed(4)));
+// Dinero: SIEMPRE 2 decimales.
 const formatCurrency = (v: number | string | null | undefined): string =>
   `$${num(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -61,10 +65,17 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
     initial ? String(initial.invoice_id) : fixedInvoiceId ? String(fixedInvoiceId) : '',
   );
   const [productId, setProductId] = useState<string>(initial?.product_id ? String(initial.product_id) : '');
+  const [variantId, setVariantId] = useState<string>(initial?.variant_id ? String(initial.variant_id) : '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [quantity, setQuantity] = useState(initial ? String(num(initial.quantity)) : '');
   const [unitPrice, setUnitPrice] = useState(initial ? String(num(initial.unit_price)) : '');
   const [taxAmount, setTaxAmount] = useState(initial ? String(num(initial.tax_amount)) : '0');
+
+  // Producto seleccionado y sus variantes activas. El backend exige variant_id
+  // cuando se vincula un producto, así que se obliga a elegir variante.
+  const selectedProduct = productId ? products.find((p) => String(p.id) === productId) ?? null : null;
+  const productVariants = (selectedProduct?.variants ?? []).filter((v) => v.isActive !== false);
+  const productHasNoVariants = !!selectedProduct && productVariants.length === 0;
 
   // Aritmética de línea en tiempo real.
   const lineSubtotal = round2(num(quantity) * num(unitPrice));
@@ -81,7 +92,10 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
     quantity.trim().length > 0 &&
     num(quantity) > 0 &&
     unitPrice.trim().length > 0 &&
-    num(unitPrice) >= 0;
+    num(unitPrice) >= 0 &&
+    // Si se elige un producto de inventario, es obligatorio elegir una variante
+    // (product_id y variant_id deben ir juntos, o ninguno).
+    (!productId || variantId.trim().length > 0);
 
   // En edición, no permitir guardar si nada cambió respecto a la línea original.
   const isUnchanged =
@@ -91,13 +105,17 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
     num(quantity) === num(initial.quantity) &&
     num(unitPrice) === num(initial.unit_price) &&
     num(taxAmount) === num(initial.tax_amount) &&
-    (productId ? Number(productId) : null) === (initial.product_id ?? null);
+    (productId ? Number(productId) : null) === (initial.product_id ?? null) &&
+    (variantId ? Number(variantId) : null) === (initial.variant_id ?? null);
 
   const canSubmit = fieldsValid && !isUnchanged;
 
   const handleProductChange = (value: string) => {
     setProductId(value);
-    if (!value) return;
+    if (!value) {
+      setVariantId('');
+      return;
+    }
     const product = products.find((p) => String(p.id) === value);
     if (product) {
       // Auto-rellena descripción y precio unitario con el último costo del producto.
@@ -105,6 +123,11 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
       if (product.last_cost !== null && product.last_cost !== undefined) {
         setUnitPrice(String(num(product.last_cost)));
       }
+      // Auto-selecciona la variante si el producto tiene exactamente una activa.
+      const active = (product.variants ?? []).filter((v) => v.isActive !== false);
+      setVariantId(active.length === 1 ? String(active[0].id) : '');
+    } else {
+      setVariantId('');
     }
   };
 
@@ -112,6 +135,9 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
     e.preventDefault();
     if (!canSubmit || submitting || locked) return;
 
+    // El backend exige product_id y variant_id juntos (o ninguno). Solo se vincula
+    // inventario cuando ambos están presentes.
+    const linkingInventory = !!productId && !!variantId;
     const base = {
       description: description.trim(),
       quantity: num(quantity),
@@ -120,7 +146,8 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
       // El backend exige line_subtotal y line_total en el body (los calculamos aquí).
       line_subtotal: lineSubtotal,
       line_total: lineTotal,
-      product_id: productId ? Number(productId) : null,
+      product_id: linkingInventory ? Number(productId) : null,
+      variant_id: linkingInventory ? Number(variantId) : null,
     };
 
     if (mode === 'create') {
@@ -134,26 +161,16 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
 
   useModalDismiss(onCancel);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[1000] flex justify-end font-sans">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={mode === 'create' ? 'Add Item' : 'Edit Item'}
-        className="relative w-full max-w-md bg-[#fcfbfa] h-full shadow-2xl z-10 flex flex-col border-l border-[#e8e2d8] animate-slide-in text-left"
-      >
-        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center shrink-0">
-          <span className="text-[11px] font-bold text-white uppercase tracking-widest">
-            {mode === 'create' ? 'Add Item' : 'Edit Item'}
-          </span>
-          <button type="button" onClick={onCancel} className="text-white/70 hover:text-white transition-colors">
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+  return (
+    <AppModal
+      title={mode === 'create' ? 'Add Item' : 'Edit Item'}
+      subtitle="Accounts Payable"
+      onClose={onCancel}
+      closeDisabled={submitting}
+      size="lg"
+      closeAriaLabel="Close item form"
+    >
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-left">
             {locked && (
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-xs">
                 <span className="material-symbols-outlined text-base">lock</span>
@@ -211,6 +228,40 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
               </select>
             </div>
 
+            {/* Variant (required when a product is linked) */}
+            {productId && (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="item-variant" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                  Variant <span className="text-[#ae001a]">*</span>
+                </label>
+                {productHasNoVariants ? (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-xs">
+                    <span className="material-symbols-outlined text-base">warning</span>
+                    <span>
+                      This product has no active variants, so it can’t be linked to inventory. Choose
+                      “Unmapped / Direct Expense”, or add a variant to the product first.
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    id="item-variant"
+                    value={variantId}
+                    onChange={(e) => setVariantId(e.target.value)}
+                    disabled={locked}
+                    className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full disabled:bg-[#f2ede5] disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select a variant…</option>
+                    {productVariants.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                        {v.sku ? ` (${v.sku})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
             {/* Description */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="item-description" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
@@ -246,7 +297,7 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
                   onChange={(e) => setQuantity(e.target.value)}
                   disabled={locked}
                   className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full font-mono disabled:bg-[#f2ede5] disabled:cursor-not-allowed"
-                  placeholder="0.0000"
+                  placeholder="0.00"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -256,13 +307,13 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
                 <input
                   id="item-unit-price"
                   type="number"
-                  step="0.0001"
+                  step="0.01"
                   min="0"
                   value={unitPrice}
                   onChange={(e) => setUnitPrice(e.target.value)}
                   disabled={locked}
                   className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full font-mono disabled:bg-[#f2ede5] disabled:cursor-not-allowed"
-                  placeholder="0.0000"
+                  placeholder="0.00"
                 />
               </div>
             </div>
@@ -300,28 +351,15 @@ const ItemFormDrawer: React.FC<ItemFormDrawerProps> = ({
                 </span>
               </div>
             </div>
-          </div>
 
-          <div className="p-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || submitting || locked}
-              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
-            >
-              {submitting ? 'Saving…' : 'Save Item'}
-            </button>
-          </div>
+          <ModalFormFooter
+            onCancel={onCancel}
+            submitLabel={submitting ? 'Saving…' : 'Save Item'}
+            isSubmitting={submitting}
+            submitDisabled={!canSubmit || locked}
+          />
         </form>
-      </div>
-    </div>,
-    document.body,
+    </AppModal>
   );
 };
 
@@ -474,7 +512,7 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${API_BASE}/products?limit=200`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/products?limit=100`, { headers: authHeaders() });
       if (!res.ok) return;
       const json = await res.json();
       setProducts(json.data ?? []);
@@ -860,10 +898,10 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
                           )}
                         </td>
 
-                        {/* Qty × unit price (4 decimals) */}
+                        {/* Qty × unit price — cantidad con precisión (sin ceros de más), precio como dinero (2 dec) */}
                         <td className="px-6 py-4 text-right whitespace-nowrap font-mono text-sm text-[#1d1c17]">
-                          {format4(it.quantity)}
-                          <span className="text-[#5f5e5e]"> @ </span>${format4(it.unit_price)}
+                          {formatQty(it.quantity)}
+                          <span className="text-[#5f5e5e]"> @ </span>{formatCurrency(it.unit_price)}
                         </td>
 
                         {/* Tax */}
@@ -950,27 +988,7 @@ export const SupplierInvoiceItemsView: React.FC<SupplierInvoiceItemsViewProps> =
         />
       )}
 
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 shadow-lg text-white text-sm font-medium ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">
-            {toast.type === 'success' ? 'check_circle' : 'error'}
-          </span>
-          {toast.message}
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
-        </div>
-      )}
+      {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
     </div>
   );
 };

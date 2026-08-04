@@ -5,17 +5,23 @@ import type {
   SupplierPayment,
   SupplierPaymentStatus,
   SupplierPaymentAllocation,
+  SupplierPaymentItem,
+  SupplierInvoice,
   InvoiceSupplierRef,
   CreateSupplierPaymentDto,
   UpdateSupplierPaymentDto,
+  CreateSupplierPaymentAllocationDto,
 } from '../../../types/accounts-payable';
 import {
   SUPPLIER_PAYMENT_STATUSES,
   SUPPLIER_PAYMENT_STATUS_LABELS,
   SUPPLIER_PAYMENT_METHODS,
+  SUPPLIER_PAYMENT_METHOD_FILTERS,
 } from '../../../types/accounts-payable';
 import { AccountsPayableQuickLinks } from './AccountsPayableQuickLinks';
 import { useModalDismiss } from '../../../lib/useModalDismiss';
+import { AppModal, ModalFormFooter } from '../shared/AppModal';
+import { Toast } from '../shared/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -56,13 +62,23 @@ const STATUS_BADGE_STYLES: Record<SupplierPaymentStatus, string> = {
 
 // ========================= FORM DRAWER (RECORD / EDIT) =========================
 
+// Asignación que el form emite: a qué invoice (por número) y cuánto aplica el pago.
+export type PaymentAllocationDraft = Pick<
+  CreateSupplierPaymentAllocationDto,
+  'supplier_id' | 'document_number' | 'document_type' | 'allocated_amount'
+>;
+
 interface PaymentFormDrawerProps {
   mode: 'create' | 'edit';
   initial?: SupplierPayment;
   suppliers: InvoiceSupplierRef[];
   submitting: boolean;
+  authHeaders: () => Record<string, string>;
   onCancel: () => void;
-  onSubmit: (dto: CreateSupplierPaymentDto | UpdateSupplierPaymentDto) => void;
+  onSubmit: (
+    dto: CreateSupplierPaymentDto | UpdateSupplierPaymentDto,
+    allocations: PaymentAllocationDraft[],
+  ) => void;
 }
 
 const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
@@ -70,10 +86,16 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
   initial,
   suppliers,
   submitting,
+  authHeaders,
   onCancel,
   onSubmit,
 }) => {
   const [supplierId, setSupplierId] = useState<string>(initial ? String(initial.supplier_id) : '');
+  // Facturas pendientes del proveedor (balance_due > 0) para asignar el pago.
+  const [outstanding, setOutstanding] = useState<SupplierInvoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  // invoice_id → monto a asignar (string del input).
+  const [alloc, setAlloc] = useState<Record<number, string>>({});
   const [paymentNumber, setPaymentNumber] = useState(initial?.payment_number ?? '');
   const [paymentDate, setPaymentDate] = useState(initial?.payment_date?.slice(0, 10) ?? '');
   const [paymentMethod, setPaymentMethod] = useState(initial?.payment_method ?? 'bank_transfer');
@@ -82,14 +104,66 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
   const [status, setStatus] = useState<SupplierPaymentStatus>(initial?.status ?? 'draft');
 
   const allocatedAmount = num(initial?.allocated_amount);
-  // Lock de auditoría: si ya hay monto asignado, supplier_id y total_amount son read-only.
-  const locked = mode === 'edit' && allocatedAmount > 0;
+  // Lock de auditoría de campos estructurales (supplier_id, total_amount):
+  // - si ya hay monto asignado (allocated_amount > 0), o
+  // - si el pago ya salió de DRAFT (posting transition bloquea los atributos de cabecera).
+  const locked =
+    mode === 'edit' && !!initial && (allocatedAmount > 0 || initial.status !== 'draft');
 
   const totalNum = num(totalAmount);
   const fullyAllocatedError =
     status === 'fully_allocated' && allocatedAmount !== totalNum
       ? 'Cannot mark as Fully Allocated unless the allocated amount equals the total amount.'
       : '';
+
+  // Cargar las facturas pendientes del proveedor seleccionado para poder asignarlas.
+  useEffect(() => {
+    if (!supplierId) {
+      setOutstanding([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingInvoices(true);
+    fetch(`${API_BASE}/supplier-invoices?supplier_id=${supplierId}&limit=100`, {
+      headers: authHeaders(),
+    })
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((json) => {
+        if (cancelled) return;
+        const list = ((json.data ?? []) as SupplierInvoice[]).filter(
+          (inv) => !inv.deleted_at && num(inv.balance_due) > 0,
+        );
+        setOutstanding(list);
+      })
+      .catch(() => {
+        if (!cancelled) setOutstanding([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingInvoices(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierId]);
+
+  // Asignaciones capturadas (monto > 0) y su validación contra el saldo disponible.
+  const allocEntries = outstanding
+    .map((inv) => ({ inv, amount: num(alloc[inv.id]) }))
+    .filter((e) => e.amount > 0);
+  const allocSum = allocEntries.reduce((s, e) => s + e.amount, 0);
+  // Monto del pago aún sin asignar (en edición puede haber asignaciones previas).
+  const unallocatedCap = totalNum - (mode === 'edit' ? allocatedAmount : 0);
+  const overCap = allocSum > unallocatedCap + 0.001;
+  const overBalance = allocEntries.some(
+    (e) => e.amount > num(e.inv.balance_due) + 0.001,
+  );
+  const allocError = overCap
+    ? `Allocations (${formatCurrency(allocSum)}) exceed the payment's unallocated amount (${formatCurrency(unallocatedCap)}).`
+    : overBalance
+      ? 'An allocation cannot exceed the invoice balance.'
+      : '';
+  const hasAllocations = allocEntries.length > 0;
 
   const fieldsValid =
     supplierId.trim().length > 0 &&
@@ -98,7 +172,8 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
     paymentDate.trim().length > 0 &&
     paymentMethod.trim().length > 0 &&
     totalNum > 0 &&
-    !fullyAllocatedError;
+    !fullyAllocatedError &&
+    !allocError;
 
   const isUnchanged =
     mode === 'edit' &&
@@ -111,21 +186,35 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
     num(totalAmount) === num(initial.total_amount) &&
     status === initial.status;
 
-  const canSubmit = fieldsValid && !isUnchanged;
+  // En edición, agregar asignaciones es un cambio válido aunque la cabecera no cambie.
+  const canSubmit = fieldsValid && (!isUnchanged || hasAllocations);
+
+  const buildAllocations = (): PaymentAllocationDraft[] =>
+    allocEntries.map((e) => ({
+      supplier_id: Number(supplierId),
+      document_number: e.inv.invoice_number,
+      document_type: 'invoice',
+      allocated_amount: e.amount,
+    }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || submitting) return;
 
+    const allocations = buildAllocations();
+
     if (mode === 'create') {
-      onSubmit({
-        supplier_id: Number(supplierId),
-        payment_number: paymentNumber.trim(),
-        payment_date: paymentDate,
-        payment_method: paymentMethod,
-        reference: reference.trim() || null,
-        total_amount: totalNum,
-      });
+      onSubmit(
+        {
+          supplier_id: Number(supplierId),
+          payment_number: paymentNumber.trim(),
+          payment_date: paymentDate,
+          payment_method: paymentMethod,
+          reference: reference.trim() || null,
+          total_amount: totalNum,
+        },
+        allocations,
+      );
       return;
     }
 
@@ -140,31 +229,21 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
       dto.supplier_id = Number(supplierId);
       dto.total_amount = totalNum;
     }
-    onSubmit(dto);
+    onSubmit(dto, allocations);
   };
 
   useModalDismiss(onCancel);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[1000] flex justify-end font-sans">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={mode === 'create' ? 'Record Payment' : 'Edit Payment'}
-        className="relative w-full max-w-md bg-[#fcfbfa] h-full shadow-2xl z-10 flex flex-col border-l border-[#e8e2d8] animate-slide-in text-left"
-      >
-        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center shrink-0">
-          <span className="text-[11px] font-bold text-white uppercase tracking-widest">
-            {mode === 'create' ? 'Record Payment' : 'Edit Payment'}
-          </span>
-          <button type="button" onClick={onCancel} className="text-white/70 hover:text-white transition-colors">
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+  return (
+    <AppModal
+      title={mode === 'create' ? 'Record Payment' : 'Edit Payment'}
+      subtitle="Accounts Payable"
+      onClose={onCancel}
+      closeDisabled={submitting}
+      size="lg"
+      closeAriaLabel="Close payment form"
+    >
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-left">
             {locked && (
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-xs">
                 <span className="material-symbols-outlined text-base">lock</span>
@@ -286,6 +365,62 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
               </div>
             </div>
 
+            {/* Apply payment to outstanding invoices (allocation) */}
+            {supplierId && (
+              <div className="flex flex-col gap-2 border border-[#e8e2d8] rounded p-3 bg-[#faf7f2]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+                    Apply to invoices (optional)
+                  </span>
+                  {hasAllocations && (
+                    <span className="text-[11px] font-mono text-[#1d1c17]">
+                      {formatCurrency(allocSum)} / {formatCurrency(unallocatedCap)}
+                    </span>
+                  )}
+                </div>
+                {loadingInvoices ? (
+                  <p className="text-xs text-[#5f5e5e]">Loading outstanding invoices…</p>
+                ) : outstanding.length === 0 ? (
+                  <p className="text-xs text-[#5f5e5e] italic">
+                    No outstanding invoices for this supplier.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                    {outstanding.map((inv) => (
+                      <div key={inv.id} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-[#1d1c17] truncate">
+                            {inv.invoice_number}
+                          </p>
+                          <p className="text-[11px] text-[#5f5e5e] font-mono">
+                            Balance {formatCurrency(inv.balance_due)}
+                          </p>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={num(inv.balance_due)}
+                          value={alloc[inv.id] ?? ''}
+                          onChange={(e) =>
+                            setAlloc((prev) => ({ ...prev, [inv.id]: e.target.value }))
+                          }
+                          aria-label={`Allocate to ${inv.invoice_number}`}
+                          className="w-28 bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none font-mono"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {allocError && (
+                  <p role="alert" className="text-[11px] font-semibold text-[#ae001a]">
+                    {allocError}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Allocated (read-only) + status (edit only) */}
             {mode === 'edit' && (
               <>
@@ -319,28 +454,14 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
                 </div>
               </>
             )}
-          </div>
-
-          <div className="p-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || submitting}
-              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
-            >
-              {submitting ? 'Saving…' : mode === 'create' ? 'Record Payment' : 'Save Payment'}
-            </button>
-          </div>
+          <ModalFormFooter
+            onCancel={onCancel}
+            submitLabel={submitting ? 'Saving…' : mode === 'create' ? 'Record Payment' : 'Save Payment'}
+            isSubmitting={submitting}
+            submitDisabled={!canSubmit}
+          />
         </form>
-      </div>
-    </div>,
-    document.body,
+    </AppModal>
   );
 };
 
@@ -348,11 +469,17 @@ const PaymentFormDrawer: React.FC<PaymentFormDrawerProps> = ({
 
 interface PaymentDetailDrawerProps {
   payment: SupplierPayment;
+  items: SupplierPaymentItem[] | null; // null = loading
   allocations: SupplierPaymentAllocation[] | null; // null = loading
   onClose: () => void;
 }
 
-const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({ payment, allocations, onClose }) => {
+const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({
+  payment,
+  items,
+  allocations,
+  onClose,
+}) => {
   useModalDismiss(onClose);
   return createPortal(
     <div className="fixed inset-0 z-[1000] flex justify-end font-sans">
@@ -405,6 +532,29 @@ const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({ payment, allo
               <span className="block text-[9px] font-bold uppercase tracking-wider text-[#5f5e5e]">Unallocated</span>
               <span className="text-sm font-black text-[#ae001a]">{formatCurrency(unallocatedBalance(payment))}</span>
             </div>
+          </div>
+
+          <div className="border-t border-[#e8e2d8] pt-5 space-y-3">
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
+              Breakdown Items ({items?.length ?? 0})
+            </h4>
+            {items === null ? (
+              <p className="text-xs text-[#5f5e5e]">Loading items…</p>
+            ) : items.length > 0 ? (
+              <ul className="space-y-2">
+                {items.map((it) => (
+                  <li key={it.id} className="flex justify-between items-center bg-[#f5efe6] border border-[#e8e2d8] p-3">
+                    <div>
+                      <p className="text-xs font-semibold text-[#1c1b16] font-mono">{it.document_number}</p>
+                      <p className="text-[10px] text-[#5f5e5e] uppercase tracking-wider">{it.document_type}</p>
+                    </div>
+                    <span className="text-xs font-bold text-[#1c1b16]">{formatCurrency(it.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-[#5f5e5e] italic">No breakdown items recorded for this payment.</p>
+            )}
           </div>
 
           <div className="border-t border-[#e8e2d8] pt-5 space-y-3">
@@ -524,12 +674,14 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
 
   const [searchQuery, setSearchQuery] = useState('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
+  const [methodFilter, setMethodFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'' | SupplierPaymentStatus>('');
 
   const [formDrawer, setFormDrawer] = useState<null | { mode: 'create' | 'edit'; payment?: SupplierPayment }>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [detailPayment, setDetailPayment] = useState<SupplierPayment | null>(null);
   const [detailAllocations, setDetailAllocations] = useState<SupplierPaymentAllocation[] | null>(null);
+  const [detailItems, setDetailItems] = useState<SupplierPaymentItem[] | null>(null);
   const [deletingPayment, setDeletingPayment] = useState<SupplierPayment | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -585,7 +737,7 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
 
   const fetchSuppliers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/suppliers?limit=200`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/inventory/suppliers?limit=100`, { headers: authHeaders() });
       if (!res.ok) return;
       const json = await res.json();
       setSuppliers(json.data ?? []);
@@ -621,20 +773,45 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
         if (!haystack.includes(term)) return false;
       }
       if (supplierFilter && String(p.supplier_id) !== supplierFilter) return false;
+      if (methodFilter && p.payment_method !== methodFilter) return false;
       if (statusFilter && p.status !== statusFilter) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payments, suppliers, searchQuery, supplierFilter, statusFilter]);
+  }, [payments, suppliers, searchQuery, supplierFilter, methodFilter, statusFilter]);
 
-  const hasActiveFilter = Boolean(searchQuery || supplierFilter || statusFilter);
+  const hasActiveFilter = Boolean(searchQuery || supplierFilter || methodFilter || statusFilter);
   const clearFilters = () => {
     setSearchQuery('');
     setSupplierFilter('');
+    setMethodFilter('');
     setStatusFilter('');
   };
 
-  const handleCreateSubmit = async (dto: CreateSupplierPaymentDto) => {
+  // Crea las asignaciones pago→invoice. El backend recalcula allocated_amount del pago
+  // y paid_amount/status de cada factura, así que refrescamos tras aplicarlas.
+  const postAllocations = async (
+    paymentId: number,
+    allocations: PaymentAllocationDraft[],
+  ) => {
+    for (const a of allocations) {
+      const body: CreateSupplierPaymentAllocationDto = { payment_id: paymentId, ...a };
+      const res = await fetch(`${API_BASE}/supplier-payment-allocations`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || 'Failed to apply the payment to an invoice');
+      }
+    }
+  };
+
+  const handleCreateSubmit = async (
+    dto: CreateSupplierPaymentDto,
+    allocations: PaymentAllocationDraft[],
+  ) => {
     setFormSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/supplier-payments`, {
@@ -645,7 +822,12 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
       if (res.status === 401) return handleUnauthorized();
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.message || 'Failed to record payment');
-      setPayments((prev) => [json.data, ...prev]);
+      if (allocations.length > 0) {
+        await postAllocations(json.data.id, allocations);
+        await fetchPayments();
+      } else {
+        setPayments((prev) => [json.data, ...prev]);
+      }
       setFormDrawer(null);
       setToast({ message: 'Payment recorded successfully', type: 'success' });
     } catch (err: any) {
@@ -656,7 +838,11 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
     }
   };
 
-  const handleEditSubmit = async (id: number, dto: UpdateSupplierPaymentDto) => {
+  const handleEditSubmit = async (
+    id: number,
+    dto: UpdateSupplierPaymentDto,
+    allocations: PaymentAllocationDraft[],
+  ) => {
     setFormSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/supplier-payments/${id}`, {
@@ -667,7 +853,12 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
       if (res.status === 401) return handleUnauthorized();
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.message || 'Failed to update payment');
-      setPayments((prev) => prev.map((p) => (p.id === json.data.id ? json.data : p)));
+      if (allocations.length > 0) {
+        await postAllocations(id, allocations);
+        await fetchPayments(); // reflejar allocated_amount/status recalculados
+      } else {
+        setPayments((prev) => prev.map((p) => (p.id === json.data.id ? json.data : p)));
+      }
       setFormDrawer(null);
       setToast({ message: 'Payment updated successfully', type: 'success' });
     } catch (err: any) {
@@ -717,6 +908,22 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
   const handleRowClick = async (p: SupplierPayment) => {
     setDetailPayment(withSupplier(p));
     setDetailAllocations(null);
+    setDetailItems(null);
+
+    // Breakdown items del pago.
+    void (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/supplier-payment-items?payment_id=${p.id}&limit=100`,
+          { headers: authHeaders() },
+        );
+        setDetailItems(res.ok ? (await res.json()).data ?? [] : []);
+      } catch {
+        setDetailItems([]);
+      }
+    })();
+
+    // Allocations activas contra facturas.
     try {
       const res = await fetch(
         `${API_BASE}/supplier-payment-allocations?payment_id=${p.id}&limit=100`,
@@ -796,6 +1003,19 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
           ))}
         </select>
         <select
+          value={methodFilter}
+          onChange={(e) => setMethodFilter(e.target.value)}
+          className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by payment method"
+        >
+          <option value="">All Methods</option>
+          {SUPPLIER_PAYMENT_METHOD_FILTERS.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as '' | SupplierPaymentStatus)}
           className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
@@ -837,7 +1057,7 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
         >
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">payments</span>
           <p className="text-[#5f5e5e] mt-4 max-w-md text-sm leading-relaxed">
-            No supplier payments found. Click &apos;Record Payment&apos; to register a new vendor
+            No supplier payments recorded. Click &apos;Record Payment&apos; to register a new vendor
             disbursement.
           </p>
           <button
@@ -921,12 +1141,17 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
                       onClick={() => handleRowClick(p)}
                       className="group hover:bg-[#f8f3eb] transition-colors cursor-pointer"
                     >
-                      {/* Number + vendor + date */}
+                      {/* Number + vendor + reference + date */}
                       <td className="px-6 py-4">
                         <p className="font-bold text-[#1d1c17] font-mono">{p.payment_number}</p>
-                        <p className="text-xs text-[#5f5e5e]">
-                          {p.supplier?.name ?? `Supplier #${p.supplier_id}`}
-                          <span className="text-[#5f5e5e]/60"> · {formatDate(p.payment_date)}</span>
+                        <p className="text-xs text-[#5f5e5e] flex items-center gap-1.5 flex-wrap">
+                          <span>{p.supplier?.name ?? `Supplier #${p.supplier_id}`}</span>
+                          {p.reference && (
+                            <span className="inline-flex items-center bg-[#ece8e0] text-[#5f5e5e] font-mono text-[10px] px-1.5 py-0.5 rounded">
+                              {p.reference}
+                            </span>
+                          )}
+                          <span className="text-[#5f5e5e]/60">· {formatDate(p.payment_date)}</span>
                         </p>
                       </td>
 
@@ -1012,11 +1237,16 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
           initial={formDrawer.payment}
           suppliers={suppliers}
           submitting={formSubmitting}
+          authHeaders={authHeaders}
           onCancel={() => setFormDrawer(null)}
-          onSubmit={(dto) =>
+          onSubmit={(dto, allocations) =>
             formDrawer.mode === 'create'
-              ? handleCreateSubmit(dto as CreateSupplierPaymentDto)
-              : handleEditSubmit(formDrawer.payment!.id, dto as UpdateSupplierPaymentDto)
+              ? handleCreateSubmit(dto as CreateSupplierPaymentDto, allocations)
+              : handleEditSubmit(
+                  formDrawer.payment!.id,
+                  dto as UpdateSupplierPaymentDto,
+                  allocations,
+                )
           }
         />
       )}
@@ -1024,10 +1254,12 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
       {detailPayment && (
         <PaymentDetailDrawer
           payment={detailPayment}
+          items={detailItems}
           allocations={detailAllocations}
           onClose={() => {
             setDetailPayment(null);
             setDetailAllocations(null);
+            setDetailItems(null);
           }}
         />
       )}
@@ -1041,27 +1273,7 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
         />
       )}
 
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 shadow-lg text-white text-sm font-medium ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">
-            {toast.type === 'success' ? 'check_circle' : 'error'}
-          </span>
-          {toast.message}
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
-        </div>
-      )}
+      {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
     </div>
   );
 };
