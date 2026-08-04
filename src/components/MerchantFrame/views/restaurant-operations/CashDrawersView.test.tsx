@@ -663,8 +663,7 @@ describe('CashDrawersView — Close Drawer', () => {
     render(<CashDrawersView />);
     await screen.findByText('#CD-3');
 
-    const discrepancyBadges = screen.getAllByText('Discrepancy');
-    expect(discrepancyBadges.length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId('cash-drawer-row-3')).getByText('Discrepancy')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /view cash drawer 3 details/i }));
     const dialog = await screen.findByRole('dialog', { name: /cash drawer details/i });
