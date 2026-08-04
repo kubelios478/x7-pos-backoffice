@@ -50,7 +50,7 @@ async function bootstrap(page: Page, payments = [DRAFT_PAYMENT, ALLOCATED_PAYMEN
     (route) => route.fulfill(json({ data: [] })),
   );
   await page.route(
-    (url) => url.pathname === '/api/suppliers',
+    (url) => url.pathname === '/api/v1/inventory/suppliers',
     (route) => route.fulfill(json({ data: SUPPLIERS })),
   );
   await page.route(

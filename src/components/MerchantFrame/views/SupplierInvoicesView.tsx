@@ -15,6 +15,8 @@ import {
 } from '../../../types/accounts-payable';
 import { AccountsPayableQuickLinks } from './AccountsPayableQuickLinks';
 import { useModalDismiss } from '../../../lib/useModalDismiss';
+import { AppModal, ModalFormFooter } from '../shared/AppModal';
+import { Toast } from '../shared/Toast';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -157,27 +159,16 @@ const InvoiceFormDrawer: React.FC<InvoiceFormDrawerProps> = ({
 
   useModalDismiss(onCancel);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[1000] flex justify-end font-sans">
-      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={mode === 'create' ? 'Register Invoice' : 'Edit Invoice'}
-        className="relative w-full max-w-md bg-[#fcfbfa] h-full shadow-2xl z-10 flex flex-col border-l border-[#e8e2d8] animate-slide-in text-left"
-      >
-        {/* Header */}
-        <div className="bg-[#222222] px-6 py-4 flex justify-between items-center shrink-0">
-          <span className="text-[11px] font-bold text-white uppercase tracking-widest">
-            {mode === 'create' ? 'Register Invoice' : 'Edit Invoice'}
-          </span>
-          <button type="button" onClick={onCancel} className="text-white/70 hover:text-white transition-colors">
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+  return (
+    <AppModal
+      title={mode === 'create' ? 'Register Invoice' : 'Edit Invoice'}
+      subtitle="Accounts Payable"
+      onClose={onCancel}
+      closeDisabled={submitting}
+      size="lg"
+      closeAriaLabel="Close invoice form"
+    >
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-left">
             {locked && (
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-xs">
                 <span className="material-symbols-outlined text-base">lock</span>
@@ -326,28 +317,15 @@ const InvoiceFormDrawer: React.FC<InvoiceFormDrawerProps> = ({
                 placeholder="Optional internal memo for this vendor bill"
               />
             </div>
-          </div>
 
-          <div className="p-4 border-t border-[#e8e2d8] flex justify-end gap-3 shrink-0 bg-[#fefbf6]">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || submitting}
-              className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
-            >
-              {submitting ? 'Saving…' : 'Save Invoice'}
-            </button>
-          </div>
+          <ModalFormFooter
+            onCancel={onCancel}
+            submitLabel={submitting ? 'Saving…' : 'Save Invoice'}
+            isSubmitting={submitting}
+            submitDisabled={!canSubmit}
+          />
         </form>
-      </div>
-    </div>,
-    document.body,
+    </AppModal>
   );
 };
 
@@ -704,7 +682,7 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
 
   const fetchSuppliers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/suppliers?limit=200`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/inventory/suppliers?limit=100`, { headers: authHeaders() });
       if (!res.ok) return;
       const json = await res.json();
       setSuppliers(json.data ?? []);
@@ -1303,27 +1281,7 @@ export const SupplierInvoicesView: React.FC<SupplierInvoicesViewProps> = ({ onNa
         />
       )}
 
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-3.5 shadow-lg text-white text-sm font-medium ${
-            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">
-            {toast.type === 'success' ? 'check_circle' : 'error'}
-          </span>
-          {toast.message}
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
-        </div>
-      )}
+      {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
     </div>
   );
 };

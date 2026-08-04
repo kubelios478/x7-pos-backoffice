@@ -348,15 +348,13 @@ describe('SupplierCreditNotesView — detail & quick links', () => {
     expect(await within(dialog).findByText('PAY-777')).toBeInTheDocument();
   });
 
-  it('marks CREDIT NOTES as the active anchor', async () => {
+  it('excludes the active workspace (credit notes) from the quick-launch panel', async () => {
     installFetch();
     render(<SupplierCreditNotesView />);
     await screen.findByText('CN-2026-0001');
 
-    const nav = screen.getByRole('navigation', { name: /accounts payable shortcuts/i });
-    const active = within(nav).getByText('CREDIT NOTES');
-    expect(active.closest('[aria-current="page"]')).toBeInTheDocument();
-    expect(active.closest('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^credit notes$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /payments & disbursements/i })).toBeInTheDocument();
   });
 
   it('navigates to supplier invoices from the quick links', async () => {

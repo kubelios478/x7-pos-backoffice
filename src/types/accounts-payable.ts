@@ -38,11 +38,21 @@ export interface InvoiceSupplierRef {
 }
 
 // Vínculo relacional mínimo hacia el producto del catálogo de inventario.
+// Variante de inventario de un producto. El backend exige product_id + variant_id
+// juntos al vincular una línea a inventario (para el recibo de stock).
+export interface InvoiceVariantRef {
+  id: number;
+  name: string;
+  sku?: string | null;
+  isActive?: boolean;
+}
+
 export interface InvoiceProductRef {
   id: number;
   name: string;
   sku?: string | null;
   last_cost?: number | string | null;
+  variants?: InvoiceVariantRef[];
 }
 
 // Vínculo relacional mínimo hacia la factura padre desde una línea.
@@ -56,6 +66,7 @@ export interface SupplierInvoiceItem {
   invoice_id: number;
   invoice?: ItemInvoiceRef | null;
   product_id: number | null;
+  variant_id?: number | null;
   product?: InvoiceProductRef | null;
   description: string;
   quantity: number | string;
@@ -173,6 +184,16 @@ export interface SupplierPaymentAllocation {
   deleted_at?: string | null;
 }
 
+// Cuerpo para crear una asignación de pago→documento (invoice) contra un proveedor.
+export interface CreateSupplierPaymentAllocationDto {
+  payment_id: number;
+  credit_note_id?: number | null;
+  supplier_id: number;
+  document_number: string;
+  document_type: string;
+  allocated_amount: number;
+}
+
 export interface CreateSupplierCreditNoteDto {
   supplier_id: number;
   credit_note_number: string;
@@ -209,8 +230,25 @@ export const SUPPLIER_PAYMENT_STATUS_LABELS: Record<SupplierPaymentStatus, strin
   posted: 'Posted',
   partially_allocated: 'Partially Allocated',
   fully_allocated: 'Fully Allocated',
-  cancelled: 'Cancelled',
+  cancelled: 'Voided', // El backend usa 'cancelled'; la UI lo muestra como "Voided" (spec).
 };
+
+// Métodos ofrecidos en el filtro (subconjunto del spec: Bank Transfer, Check, Credit Card, Cash).
+export const SUPPLIER_PAYMENT_METHOD_FILTERS: Array<{ value: string; label: string }> = [
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'check', label: 'Check' },
+  { value: 'card', label: 'Credit Card' },
+  { value: 'cash', label: 'Cash' },
+];
+
+// Línea de desglose de un pago (breakdown items) para el drawer de detalle.
+export interface SupplierPaymentItem {
+  id: number;
+  payment_id: number;
+  document_number: string;
+  document_type: string;
+  amount: number | string;
+}
 
 // payment_method es texto libre en el backend; ofrecemos opciones comunes en el form.
 export const SUPPLIER_PAYMENT_METHODS: Array<{ value: string; label: string }> = [
