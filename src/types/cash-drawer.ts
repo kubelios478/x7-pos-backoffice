@@ -35,9 +35,7 @@ export interface CashDrawer {
 }
 
 export interface CreateCashDrawerDto {
-  shiftId: number;
   openingBalance: number;
-  openedBy: number;
 }
 
 export interface CloseCashDrawerDto {

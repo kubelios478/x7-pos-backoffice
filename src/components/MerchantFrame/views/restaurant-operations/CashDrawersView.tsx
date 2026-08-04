@@ -50,25 +50,17 @@ const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({
   onCancel,
   onSubmit,
 }) => {
-  const [shiftId, setShiftId] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
-  const [openedBy, setOpenedBy] = useState('');
-
-  const shiftIdNum = parseInt(shiftId, 10);
-  const shiftIdValid = shiftId.trim() !== '' && Number.isInteger(shiftIdNum) && shiftIdNum > 0;
 
   const openingBalanceNum = parseFloat(openingBalance);
   const openingBalanceValid = openingBalance.trim() !== '' && !isNaN(openingBalanceNum) && openingBalanceNum >= 0;
 
-  const openedByNum = parseInt(openedBy, 10);
-  const openedByValid = openedBy.trim() !== '' && Number.isInteger(openedByNum) && openedByNum > 0;
-
-  const isValid = shiftIdValid && openingBalanceValid && openedByValid;
+  const isValid = openingBalanceValid;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
-    onSubmit({ shiftId: shiftIdNum, openingBalance: openingBalanceNum, openedBy: openedByNum });
+    onSubmit({ openingBalance: openingBalanceNum });
   };
 
   return createPortal(
@@ -86,18 +78,9 @@ const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({
         </div>
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="cash-drawer-shift-id" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
-                Shift ID
-              </label>
-              <input
-                id="cash-drawer-shift-id"
-                type="number"
-                value={shiftId}
-                onChange={(e) => setShiftId(e.target.value)}
-                className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
-              />
-            </div>
+            <p className="text-sm text-[#5f5e5e]">
+              Your active shift and collaborator profile are assigned automatically.
+            </p>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="cash-drawer-opening-balance" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
                 Opening Balance ($)
@@ -108,18 +91,6 @@ const OpenCashDrawerFormModal: React.FC<OpenCashDrawerFormModalProps> = ({
                 step="0.01"
                 value={openingBalance}
                 onChange={(e) => setOpeningBalance(e.target.value)}
-                className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="cash-drawer-opened-by" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
-                Opened By (Collaborator ID)
-              </label>
-              <input
-                id="cash-drawer-opened-by"
-                type="number"
-                value={openedBy}
-                onChange={(e) => setOpenedBy(e.target.value)}
                 className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
               />
             </div>

@@ -453,7 +453,7 @@ describe('CashDrawersView — search and filters', () => {
 });
 
 describe('CashDrawersView — Open Cash Drawer', () => {
-  it('opens the create modal, validates fields, submits a new session, closes the dialog, and refetches the list', async () => {
+  it('opens the create modal, validates the opening balance, submits a new session, closes the dialog, and refetches the list', async () => {
     mockFetchOnce([]);
     render(<CashDrawersView />);
     await screen.findByTestId('cash-drawers-empty-state');
@@ -463,13 +463,17 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     const submitButton = within(dialog).getByRole('button', { name: /open drawer/i });
     expect(submitButton).toBeDisabled();
 
-    await userEvent.type(within(dialog).getByLabelText(/shift id/i), '3');
+    expect(
+      within(dialog).getByText(/your active shift and collaborator profile are assigned automatically/i),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/shift id/i)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/opened by/i)).not.toBeInTheDocument();
+
     await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
-    await userEvent.type(within(dialog).getByLabelText(/opened by/i), '10');
     expect(submitButton).toBeEnabled();
 
-    // The success path no longer splices the raw POST response into state —
-    // it refetches the list instead, so the mock must answer both requests.
+    // The success path refetches the list instead of splicing the raw POST
+    // response into state, so the mock must answer both requests.
     const fetchMock = vi.fn(async (_url: unknown, options?: { method?: string }) => {
       if (options?.method === 'POST') {
         return {
@@ -492,11 +496,10 @@ describe('CashDrawersView — Open Cash Drawer', () => {
         expect.stringContaining('/cash-drawers'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ shiftId: 3, openingBalance: 100, openedBy: 10 }),
+          body: JSON.stringify({ openingBalance: 100 }),
         }),
       );
     });
-    // A GET refetch follows the successful POST.
     await waitFor(() => {
       expect(fetchMock).toHaveBeenLastCalledWith(
         expect.stringContaining('/cash-drawers?'),
@@ -508,40 +511,36 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     expect(await screen.findByText('#CD-1')).toBeInTheDocument();
   });
 
-  it('shows the backend conflict message inline in the dialog, keeps the dialog open, and preserves typed input on error', async () => {
+  it('shows the backend conflict message inline in the dialog, keeps the dialog open, and preserves the typed opening balance on error', async () => {
     mockFetchOnce([openDrawer]);
     render(<CashDrawersView />);
     await screen.findByText('#CD-1');
 
     await userEvent.click(screen.getByRole('button', { name: /open cash drawer/i }));
     const dialog = screen.getByRole('dialog', { name: /open cash drawer/i });
-    await userEvent.type(within(dialog).getByLabelText(/shift id/i), '3');
     await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
-    await userEvent.type(within(dialog).getByLabelText(/opened by/i), '10');
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         status: 409,
         ok: false,
-        json: async () => ({ message: 'There is already an open cash drawer for this shift' }),
+        json: async () => ({
+          message:
+            'An active cash drawer session (#CD-12) is already open for this shift. Please close the active session before opening a new drawer.',
+        }),
       }),
     );
     await userEvent.click(within(dialog).getByRole('button', { name: /open drawer/i }));
 
-    await screen.findByText(/there is already an open cash drawer for this shift/i);
+    await screen.findByText(/an active cash drawer session \(#cd-12\) is already open for this shift/i);
 
-    // The dialog must stay mounted (not discarded on error)...
     const persistedDialog = screen.getByRole('dialog', { name: /open cash drawer/i });
     expect(persistedDialog).toBeInTheDocument();
-    // ...the error must render inline inside it (not only as a toast)...
     expect(
-      within(persistedDialog).getByText(/there is already an open cash drawer for this shift/i),
+      within(persistedDialog).getByText(/an active cash drawer session \(#cd-12\) is already open for this shift/i),
     ).toBeInTheDocument();
-    // ...and the user's typed input must still be there.
-    expect(within(persistedDialog).getByLabelText(/shift id/i)).toHaveValue(3);
     expect(within(persistedDialog).getByLabelText(/opening balance/i)).toHaveValue(100);
-    expect(within(persistedDialog).getByLabelText(/opened by/i)).toHaveValue(10);
   });
 });
 
