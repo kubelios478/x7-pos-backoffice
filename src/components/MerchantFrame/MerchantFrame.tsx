@@ -522,7 +522,7 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'cash-drawers') {
-      return <CashDrawersView />;
+      return <CashDrawersView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'ledger-accounts') {
