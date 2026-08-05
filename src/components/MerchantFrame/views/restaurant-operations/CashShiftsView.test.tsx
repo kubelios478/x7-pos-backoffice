@@ -32,7 +32,10 @@ const openShift: CashShift = {
   merchantId: 10,
   cashDrawerId: 3,
   openingBalance: 100,
-  systemAmount: null,
+  // The real backend computes a live systemAmount for OPEN shifts too (not just
+  // closed ones) — a non-null value here matches actual GET /cash-shifts behavior
+  // and guards against the detail modal ever leaking it before close.
+  systemAmount: 250,
   declaredAmount: null,
   difference: null,
   status: 'OPEN',
@@ -175,6 +178,22 @@ describe('CashShiftsView — detail modal', () => {
     // so "$120.00" legitimately renders in both the System and Declared fields —
     // assert presence, not singularity.
     expect(within(dialog).getAllByText('$120.00').length).toBeGreaterThan(0);
+  });
+
+  it('never reveals the live system amount in the detail modal while the shift is OPEN (blind count)', async () => {
+    // openShift.systemAmount is a realistic non-null live balance (250), matching
+    // real backend behavior for OPEN shifts. The detail modal must still gate it —
+    // otherwise a cashier could read it here, close the modal, and type the exact
+    // figure into the "blind" Close Shift dialog, defeating the blind-count.
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash shift 1 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash shift details/i });
+
+    expect(within(dialog).queryByText('$250.00')).not.toBeInTheDocument();
+    expect(within(dialog).getAllByText(/available after close/i).length).toBeGreaterThan(0);
   });
 });
 

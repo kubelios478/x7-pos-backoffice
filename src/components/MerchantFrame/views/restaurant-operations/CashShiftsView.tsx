@@ -42,6 +42,7 @@ interface CashShiftDetailModalProps {
 }
 
 const CashShiftDetailModal: React.FC<CashShiftDetailModalProps> = ({ shift, onClose }) => {
+  const isOpenShift = shift.status === 'OPEN';
   return createPortal(
     <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-start overflow-y-auto p-2 md:pt-4 md:pb-12 backdrop-blur-sm">
       <div
@@ -67,14 +68,26 @@ const CashShiftDetailModal: React.FC<CashShiftDetailModalProps> = ({ shift, onCl
             </div>
             <div>
               <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">System</p>
-              <p>{shift.systemAmount == null ? '--' : formatCurrency(shift.systemAmount)}</p>
+              <p>
+                {isOpenShift
+                  ? 'Available after close'
+                  : shift.systemAmount == null
+                    ? '--'
+                    : formatCurrency(shift.systemAmount)}
+              </p>
             </div>
             <div>
               <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Declared</p>
-              <p>{shift.declaredAmount == null ? '--' : formatCurrency(shift.declaredAmount)}</p>
+              <p>
+                {isOpenShift
+                  ? 'Available after close'
+                  : shift.declaredAmount == null
+                    ? '--'
+                    : formatCurrency(shift.declaredAmount)}
+              </p>
             </div>
           </div>
-          {shift.difference != null && (
+          {!isOpenShift && shift.difference != null && (
             <div>
               <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Difference</p>
               <p className={shift.difference === 0 ? 'text-[#1d1c17]' : 'font-bold text-orange-700'}>
