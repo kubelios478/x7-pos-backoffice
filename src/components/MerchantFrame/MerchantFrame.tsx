@@ -70,6 +70,51 @@ import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
 import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
 import { clearAuthSession } from '../../lib/auth-storage';
 
+// Coming Soon stubs lookup table: maps tab IDs to their display config
+interface ComingSoonStub {
+  title: string;
+  route: string;
+  icon: string;
+}
+
+const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
+  'privacy-policy': {
+    title: 'Privacy Policy',
+    route: '/legal/privacy-policy',
+    icon: 'gavel'
+  },
+  'terms-of-service': {
+    title: 'Terms of Service',
+    route: '/legal/terms-of-service',
+    icon: 'gavel'
+  },
+  'help-center': {
+    title: 'Help Center',
+    route: '/support/help-center',
+    icon: 'help'
+  },
+  'cash-shifts': {
+    title: 'Cash Shifts',
+    route: '/dashboard/cash-shifts',
+    icon: 'schedule'
+  },
+  'cash-transactions': {
+    title: 'Cash Transactions',
+    route: '/dashboard/cash-transactions',
+    icon: 'receipt_long'
+  },
+  'cash-drawer-history': {
+    title: 'Cash Drawer History',
+    route: '/dashboard/cash-drawer-history',
+    icon: 'history'
+  },
+  'cash-movements': {
+    title: 'Cash Movements',
+    route: '/dashboard/cash-movements',
+    icon: 'trending_up'
+  }
+};
+
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -365,44 +410,32 @@ export const MerchantFrame: React.FC = () => {
 
   // Renderizado dinámico de vistas SPA (AC 4.2)
   const renderSPAView = () => {
-    if (activeTab === 'privacy-policy' || activeTab === 'terms-of-service' || activeTab === 'help-center') {
-      let title = 'Feature';
-      let route = '/provisional-stub';
-      if (activeTab === 'privacy-policy') {
-        title = 'Privacy Policy';
-        route = '/legal/privacy-policy';
-      } else if (activeTab === 'terms-of-service') {
-        title = 'Terms of Service';
-        route = '/legal/terms-of-service';
-      } else if (activeTab === 'help-center') {
-        title = 'Help Center';
-        route = '/support/help-center';
-      }
-
+    // Check if this tab is a coming soon stub
+    const stub = COMING_SOON_STUBS[activeTab];
+    if (stub) {
       return (
         <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm text-left max-w-4xl mx-auto my-8">
           <div className="flex items-center gap-4 border-b border-[#e8e2d8] pb-6 mb-6">
             <span className="material-symbols-outlined text-primary text-5xl">
-              {activeTab === 'help-center' ? 'help' : 'gavel'}
+              {stub.icon}
             </span>
             <div>
               <h2 className="text-h2 font-black text-[#222222] uppercase leading-none">
-                {title}
+                {stub.title}
               </h2>
               <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mt-1.5">
-                Provisional SPA Route: <span className="text-primary">{route}</span>
+                Provisional SPA Route: <span className="text-primary">{stub.route}</span>
               </p>
             </div>
           </div>
-          
+
           <div className="p-6 bg-[#f1ece4] border border-[#e8e2d8] rounded mb-6 text-left">
             <p className="font-bold text-primary text-sm uppercase tracking-wider mb-2">Feature Coming Soon</p>
             <p className="text-body-md text-[#5f5e5e] leading-relaxed">
-              Esta sección está bajo desarrollo activo por el equipo de ingeniería legal y de operaciones de <strong>X7 Point of Sale</strong>.
-              En una futura actualización, este espacio mostrará la documentación oficial de cumplimiento regulatorio y los términos vigentes.
+              Esta sección está bajo desarrollo activo. En una futura actualización, estará disponible con todas sus funcionalidades en <strong>X7 Point of Sale</strong>.
             </p>
           </div>
-          
+
           <div className="flex justify-end">
             <button
               onClick={() => {
