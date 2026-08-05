@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
 import type { CashShift, CashShiftStatus, CreateCashShiftDto } from '../../../../types/cash-shift';
+import type { CloseCashShiftDto } from '../../../../types/cash-shift';
 import type { CashDrawer } from '../../../../types/cash-drawer';
 import { CashManagementQuickLinks } from './CashManagementQuickLinks';
 
@@ -229,6 +230,134 @@ const OpenCashShiftFormModal: React.FC<OpenCashShiftFormModalProps> = ({
   );
 };
 
+interface CloseCashShiftDialogProps {
+  shift: CashShift;
+  submitting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: (dto: CloseCashShiftDto) => void;
+}
+
+const CloseCashShiftDialog: React.FC<CloseCashShiftDialogProps> = ({
+  shift,
+  submitting,
+  error,
+  onCancel,
+  onConfirm,
+}) => {
+  const [declaredAmount, setDeclaredAmount] = useState('');
+
+  const declaredAmountNum = parseFloat(declaredAmount);
+  const isValid = declaredAmount.trim() !== '' && !isNaN(declaredAmountNum) && declaredAmountNum >= 0;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-center p-4">
+      <div
+        role="dialog"
+        aria-label="Close Cash Shift"
+        className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-sm p-6 text-left"
+      >
+        <p className="font-bold text-[#1d1c17]">Close cash shift #CS-{shift.id}?</p>
+        <p className="text-sm text-[#5f5e5e] mt-2">
+          Count the physical cash in the drawer and enter it below. The system balance is not shown here — it is
+          compared automatically after you submit.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="close-shift-declared" className="text-[11px] font-bold text-[#5f5e5e] uppercase">
+              Declared Amount ($)
+            </label>
+            <input
+              id="close-shift-declared"
+              type="number"
+              step="0.01"
+              value={declaredAmount}
+              onChange={(e) => setDeclaredAmount(e.target.value)}
+              className="bg-white text-[#1d1c17] px-3 py-2 border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none w-full"
+            />
+          </div>
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-[#ae001a] font-medium mt-4">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!isValid || submitting}
+            onClick={() => onConfirm({ declaredAmount: declaredAmountNum })}
+            className="px-5 py-2 bg-[#ae001a] hover:bg-[#930015] disabled:opacity-40 text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
+          >
+            Confirm Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+interface CashShiftResultModalProps {
+  shift: CashShift;
+  onClose: () => void;
+}
+
+const CashShiftResultModal: React.FC<CashShiftResultModalProps> = ({ shift, onClose }) => {
+  const difference = shift.difference ?? 0;
+  const isBalanced = difference === 0;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-center p-4">
+      <div
+        role="dialog"
+        aria-label="Shift Closed"
+        className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-sm p-6 text-left"
+      >
+        <p className="font-bold text-[#1d1c17]">Cash shift #CS-{shift.id} closed</p>
+        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">System Amount</p>
+            <p>{shift.systemAmount == null ? '--' : formatCurrency(shift.systemAmount)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Declared Amount</p>
+            <p>{shift.declaredAmount == null ? '--' : formatCurrency(shift.declaredAmount)}</p>
+          </div>
+        </div>
+        <div className="mt-4">
+          <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Variance</p>
+          <p className={isBalanced ? 'text-[#1d1c17]' : 'font-bold text-orange-700'}>
+            {isBalanced ? formatCurrency(0) : `${difference > 0 ? '+' : '-'}${formatCurrency(Math.abs(difference))}`}
+          </p>
+        </div>
+        <div className="mt-4">
+          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${STATUS_BADGE_CLASSES[shift.status]}`}>
+            {shift.status}
+          </span>
+        </div>
+        <div className="flex justify-end mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-[#222222] hover:bg-[#ae001a] text-white text-[11px] font-bold uppercase tracking-widest transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
 interface CashShiftsViewProps {
   onNavigate?: (view: string) => void;
 }
@@ -375,6 +504,57 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
       setCreateError(err.message || 'Failed to open cash shift');
     } finally {
       setFormSubmitting(false);
+    }
+  };
+
+  const [closingShift, setClosingShift] = useState<CashShift | null>(null);
+  const [closeSubmitting, setCloseSubmitting] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
+  const [resultShift, setResultShift] = useState<CashShift | null>(null);
+
+  const openCloseDialog = (shift: CashShift) => {
+    setCloseError(null);
+    setClosingShift(shift);
+  };
+
+  const cancelCloseDialog = () => {
+    setCloseError(null);
+    setClosingShift(null);
+  };
+
+  const handleCloseSubmit = async (dto: CloseCashShiftDto) => {
+    if (!closingShift) return;
+    setCloseSubmitting(true);
+    setCloseError(null);
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/cash-shifts/${closingShift.id}/close`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(dto),
+      });
+
+      if (res.status === 401) {
+        clearAuthSession();
+        window.location.href = '/login';
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to close cash shift');
+      }
+
+      await fetchCashShifts();
+      setClosingShift(null);
+      setResultShift(normalizeShift(json.data));
+    } catch (err: any) {
+      setCloseError(err.message || 'Failed to close cash shift');
+    } finally {
+      setCloseSubmitting(false);
     }
   };
 
@@ -563,6 +743,16 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                             >
                               <span className="material-symbols-outlined text-[20px]">visibility</span>
                             </button>
+                            {shift.status === 'OPEN' && (
+                              <button
+                                type="button"
+                                onClick={() => openCloseDialog(shift)}
+                                aria-label={`Close cash shift ${shift.id}`}
+                                className="p-1 text-[#1d1c17] hover:text-[#ae001a] transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">lock</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -586,6 +776,18 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
           onSubmit={handleCreateSubmit}
         />
       )}
+
+      {closingShift && (
+        <CloseCashShiftDialog
+          shift={closingShift}
+          submitting={closeSubmitting}
+          error={closeError}
+          onCancel={cancelCloseDialog}
+          onConfirm={handleCloseSubmit}
+        />
+      )}
+
+      {resultShift && <CashShiftResultModal shift={resultShift} onClose={() => setResultShift(null)} />}
 
       {toast && (
         <div

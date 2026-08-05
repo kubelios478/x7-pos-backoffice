@@ -311,3 +311,130 @@ describe('CashShiftsView — Open Cash Shift', () => {
     expect(screen.getByRole('dialog', { name: /open cash shift/i })).toBeInTheDocument();
   });
 });
+
+describe('CashShiftsView — Close Shift', () => {
+  it('only shows the close action for OPEN sessions', async () => {
+    mockFetchOnce([openShift, closedShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    expect(screen.getByRole('button', { name: /close cash shift 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /close cash shift 2/i })).not.toBeInTheDocument();
+  });
+
+  it('never fetches or renders the system amount in the close dialog (blind count)', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash shift 1/i }));
+    const dialog = await screen.findByRole('dialog', { name: /close cash shift/i });
+
+    expect(within(dialog).queryByText(/system amount/i)).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/system/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/declared amount/i)).toBeInTheDocument();
+  });
+
+  it('closes a shift with just the declared amount and shows a CLOSED reconciliation result', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash shift 1/i }));
+    const dialog = await screen.findByRole('dialog', { name: /close cash shift/i });
+    await userEvent.type(within(dialog).getByLabelText(/declared amount/i), '120');
+
+    const closedResponse: CashShift = {
+      ...openShift,
+      systemAmount: 120,
+      declaredAmount: 120,
+      difference: 0,
+      status: 'CLOSED',
+      closedAt: '2026-08-05T16:00:00Z',
+      closedByCollaborator: { id: 10, name: 'John Doe', role: 'WAITER' },
+    };
+    const fetchMock = vi.fn(async (_url: unknown, options?: { method?: string }) => {
+      if (options?.method === 'POST') {
+        return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: closedResponse }) };
+      }
+      return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: [closedResponse] }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm close/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/cash-shifts/1/close'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ declaredAmount: 120 }),
+        }),
+      );
+    });
+
+    const resultDialog = await screen.findByRole('dialog', { name: /shift closed/i });
+    // closedResponse is a matched reconciliation (systemAmount === declaredAmount === 120),
+    // so "$120.00" legitimately renders in both the System and Declared fields —
+    // assert presence, not singularity, matching the same pattern used for the detail modal above.
+    expect(within(resultDialog).getAllByText('$120.00').length).toBeGreaterThan(0);
+    expect(within(resultDialog).getByText('CLOSED')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /close cash shift/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a DISCREPANCY result when the declared amount does not match the system amount', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash shift 1/i }));
+    const dialog = await screen.findByRole('dialog', { name: /close cash shift/i });
+    await userEvent.type(within(dialog).getByLabelText(/declared amount/i), '100');
+
+    const discrepancyResponse: CashShift = {
+      ...openShift,
+      systemAmount: 120,
+      declaredAmount: 100,
+      difference: -20,
+      status: 'DISCREPANCY',
+      closedAt: '2026-08-05T16:00:00Z',
+      closedByCollaborator: { id: 10, name: 'John Doe', role: 'WAITER' },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, options?: { method?: string }) => {
+        if (options?.method === 'POST') {
+          return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: discrepancyResponse }) };
+        }
+        return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: [discrepancyResponse] }) };
+      }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm close/i }));
+
+    const resultDialog = await screen.findByRole('dialog', { name: /shift closed/i });
+    expect(within(resultDialog).getByText('DISCREPANCY')).toBeInTheDocument();
+    expect(within(resultDialog).getByText('-$20.00')).toBeInTheDocument();
+  });
+
+  it('shows a close-shift error inline in the dialog and keeps it open', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash shift 1/i }));
+    const dialog = await screen.findByRole('dialog', { name: /close cash shift/i });
+    await userEvent.type(within(dialog).getByLabelText(/declared amount/i), '100');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 400,
+        ok: false,
+        json: async () => ({ message: 'The cash shift is already closed. Only OPEN cash shifts can be closed.' }),
+      }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm close/i }));
+
+    await screen.findByText(/the cash shift is already closed/i);
+    expect(screen.getByRole('dialog', { name: /close cash shift/i })).toBeInTheDocument();
+  });
+});
