@@ -21,6 +21,7 @@
 - The Close Shift dialog (frontend) must never fetch or render `systemAmount` before the close request is submitted — that omission is the entire blind-count mechanism, not a separate flag to toggle.
 - `GET /cash-shifts` takes no query params — all frontend filtering (status, search) is client-side over the already-fetched list.
 - Backend repo root for every backend path below: `../x7-pos-back-end` (sibling of this repo). Frontend paths are relative to this repo's root.
+- **Known pre-existing baseline failure, confirmed before any task in this plan started:** `cash-shifts.service.spec.ts`'s `describe('addManualTransaction', ...)` block already fails 2/2 tests (`queryRunner.manager.createQueryBuilder is not a function` — a mock-setup gap in `mockEntityManager`, not a service bug). `addManualTransaction` is untouched by this plan (out of scope per the design spec) and this block is carried over byte-for-byte unchanged. Do not attempt to fix it — it is not this plan's concern. When a step says "Expected: PASS, all describe blocks," that means `openShift` and `closeShift` (and `addManualTransaction` staying at its pre-existing 2-failing baseline, not newly broken).
 
 ---
 
