@@ -439,6 +439,13 @@ export const MerchantFrame: React.FC = () => {
           <div className="flex justify-end">
             <button
               onClick={() => {
+                if (profile?.role === 'SaaS Owner') {
+                  setActiveCategory('saas');
+                  setActiveTab('saas-dashboard');
+                } else {
+                  setActiveCategory('core');
+                  setActiveTab('dashboard');
+                }
                 navigate('/dashboard');
               }}
               className="px-6 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-primary transition-all rounded shadow-md"
