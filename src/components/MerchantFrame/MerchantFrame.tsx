@@ -95,22 +95,22 @@ const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
   },
   'cash-shifts': {
     title: 'Cash Shifts',
-    route: '/dashboard/cash-shifts',
+    route: '/cash-management/shifts',
     icon: 'schedule'
   },
   'cash-transactions': {
     title: 'Cash Transactions',
-    route: '/dashboard/cash-transactions',
+    route: '/cash-management/transactions',
     icon: 'receipt_long'
   },
   'cash-drawer-history': {
-    title: 'Cash Drawer History',
-    route: '/dashboard/cash-drawer-history',
+    title: 'Drawer History',
+    route: '/cash-management/history',
     icon: 'history'
   },
   'cash-movements': {
-    title: 'Cash Movements',
-    route: '/dashboard/cash-movements',
+    title: 'Drawer Movements',
+    route: '/cash-management/movements',
     icon: 'trending_up'
   }
 };
