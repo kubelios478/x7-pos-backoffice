@@ -672,3 +672,106 @@ describe('CashDrawersView — Close Drawer', () => {
   });
 });
 
+describe('CashDrawersView — cash management quick links', () => {
+  it('renders all five shortcut anchors', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    expect(within(nav).getByText('CASH DRAWERS')).toBeInTheDocument();
+    expect(within(nav).getByText('CASH SHIFTS')).toBeInTheDocument();
+    expect(within(nav).getByText('CASH TRANSACTIONS')).toBeInTheDocument();
+    expect(within(nav).getByText('DRAWER HISTORY')).toBeInTheDocument();
+    expect(within(nav).getByText('DRAWER MOVEMENTS')).toBeInTheDocument();
+  });
+
+  it('renders the Quick Launch panel title and description', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    expect(within(nav).getByText('Cash Management Shortcuts')).toBeInTheDocument();
+    expect(
+      within(nav).getByText(
+        'Pivot across Cash Drawers, Shifts, Transactions, History, and Movements without leaving the cash management workspace context.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the shortcut bar in the true-empty state', async () => {
+    mockFetchOnce([]);
+    render(<CashDrawersView />);
+    await screen.findByTestId('cash-drawers-empty-state');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    expect(within(nav).getByText('DRAWER MOVEMENTS')).toBeInTheDocument();
+  });
+
+  it('marks CASH DRAWERS as the active anchor and does not render it as a button', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    const activeAnchor = within(nav).getByText('CASH DRAWERS');
+    expect(activeAnchor.closest('[aria-current="page"]')).toBeInTheDocument();
+    expect(activeAnchor.closest('button')).not.toBeInTheDocument();
+  });
+
+  it('calls onNavigate with the cash-shifts id when CASH SHIFTS is clicked', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView onNavigate={onNavigate} />);
+    await screen.findByText('#CD-1');
+
+    await user.click(screen.getByRole('button', { name: /cash shifts/i }));
+    expect(onNavigate).toHaveBeenCalledWith('cash-shifts');
+  });
+
+  it('calls onNavigate with the cash-transactions id when CASH TRANSACTIONS is clicked', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView onNavigate={onNavigate} />);
+    await screen.findByText('#CD-1');
+
+    await user.click(screen.getByRole('button', { name: /cash transactions/i }));
+    expect(onNavigate).toHaveBeenCalledWith('cash-transactions');
+  });
+
+  it('calls onNavigate with the cash-drawer-history id when DRAWER HISTORY is clicked', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView onNavigate={onNavigate} />);
+    await screen.findByText('#CD-1');
+
+    await user.click(screen.getByRole('button', { name: /drawer history/i }));
+    expect(onNavigate).toHaveBeenCalledWith('cash-drawer-history');
+  });
+
+  it('calls onNavigate with the cash-movements id when DRAWER MOVEMENTS is clicked', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView onNavigate={onNavigate} />);
+    await screen.findByText('#CD-1');
+
+    await user.click(screen.getByRole('button', { name: /drawer movements/i }));
+    expect(onNavigate).toHaveBeenCalledWith('cash-movements');
+  });
+
+  it('does not throw when a shortcut is clicked and onNavigate is not provided', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await user.click(screen.getByRole('button', { name: /cash shifts/i }));
+    expect(screen.getByText('#CD-1')).toBeInTheDocument();
+  });
+});
+

@@ -7,6 +7,7 @@ import type {
   CreateCashDrawerDto,
   CloseCashDrawerDto,
 } from '../../../../types/cash-drawer';
+import { CashManagementQuickLinks } from './CashManagementQuickLinks';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -293,7 +294,11 @@ const CloseCashDrawerDialog: React.FC<CloseCashDrawerDialogProps> = ({
   );
 };
 
-export const CashDrawersView: React.FC = () => {
+interface CashDrawersViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const CashDrawersView: React.FC<CashDrawersViewProps> = ({ onNavigate }) => {
   const [drawers, setDrawers] = useState<CashDrawer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -785,6 +790,8 @@ export const CashDrawersView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <CashManagementQuickLinks activeModule="cash-drawers" onNavigate={onNavigate} />
 
       {formModalOpen && (
         <OpenCashDrawerFormModal
