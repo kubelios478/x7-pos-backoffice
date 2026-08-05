@@ -870,8 +870,11 @@ Replace the entire `describe('closeShift', ...)` block in `cash-shifts.service.s
 
 ```ts
   describe('closeShift', () => {
+    // 120 matches the getLiveBalance mock below exactly — this is the
+    // happy-path "no discrepancy" case. The dedicated DISCREPANCY and
+    // sub-cent-noise tests further down cover the branching itself.
     const closeDto: CloseCashShiftDto = {
-      declaredAmount: 150,
+      declaredAmount: 120,
     };
 
     const activeShift = {
@@ -892,8 +895,8 @@ Replace the entire `describe('closeShift', ...)` block in `cash-shifts.service.s
           ...activeShift,
           status: CashShiftStatus.CLOSED,
           systemAmount: 120,
-          declaredAmount: 150,
-          difference: 30,
+          declaredAmount: 120,
+          difference: 0,
           closedBy: 5,
           closedAt: new Date(),
           openedByCollaborator: mockCollaborator,
@@ -920,8 +923,8 @@ Replace the entire `describe('closeShift', ...)` block in `cash-shifts.service.s
       );
       expect(result.statusCode).toBe(200);
       expect(result.data.systemAmount).toBe(120);
-      expect(result.data.declaredAmount).toBe(150);
-      expect(result.data.difference).toBe(30);
+      expect(result.data.declaredAmount).toBe(120);
+      expect(result.data.difference).toBe(0);
       expect(result.data.status).toBe(CashShiftStatus.CLOSED);
     });
 
