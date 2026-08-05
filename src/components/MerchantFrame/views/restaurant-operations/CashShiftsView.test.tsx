@@ -248,10 +248,7 @@ describe('CashShiftsView — Open Cash Shift', () => {
     render(<CashShiftsView />);
     await screen.findByTestId('cash-shifts-empty-state');
 
-    // The empty state renders its own "Open Cash Shift" CTA alongside the toolbar
-    // button (both invoke the same handler), so two elements share this accessible
-    // name here — disambiguate rather than assert singularity.
-    await userEvent.click(screen.getAllByRole('button', { name: /open cash shift/i })[0]);
+    await userEvent.click(screen.getByRole('button', { name: /open cash shift/i }));
     const dialog = await screen.findByRole('dialog', { name: /open cash shift/i });
     const submitButton = within(dialog).getByRole('button', { name: /open shift/i });
     expect(submitButton).toBeDisabled();
@@ -292,10 +289,7 @@ describe('CashShiftsView — Open Cash Shift', () => {
     render(<CashShiftsView />);
     await screen.findByTestId('cash-shifts-empty-state');
 
-    // The empty state renders its own "Open Cash Shift" CTA alongside the toolbar
-    // button (both invoke the same handler), so two elements share this accessible
-    // name here — disambiguate rather than assert singularity.
-    await userEvent.click(screen.getAllByRole('button', { name: /open cash shift/i })[0]);
+    await userEvent.click(screen.getByRole('button', { name: /open cash shift/i }));
     const dialog = await screen.findByRole('dialog', { name: /open cash shift/i });
     await userEvent.selectOptions(within(dialog).getByLabelText(/cash drawer/i), '7');
     await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');

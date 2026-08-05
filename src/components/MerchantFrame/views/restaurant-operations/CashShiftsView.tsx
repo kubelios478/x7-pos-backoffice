@@ -432,14 +432,16 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
             Clear Filters
           </button>
         )}
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
-        >
-          <span className="material-symbols-outlined text-base">add</span>
-          Open Cash Shift
-        </button>
+        {!isTrueEmpty && (
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="px-5 py-2.5 bg-[#ae001a] hover:bg-[#930015] text-white text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            <span className="material-symbols-outlined text-base">add</span>
+            Open Cash Shift
+          </button>
+        )}
       </div>
 
       {isTrueEmpty && (
