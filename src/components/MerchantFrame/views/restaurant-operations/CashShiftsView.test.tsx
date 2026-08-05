@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CashShiftsView, formatDateTime } from './CashShiftsView';
 import type { CashShift } from '../../../../types/cash-shift';
+import type { CashDrawer } from '../../../../types/cash-drawer';
 
 vi.mock('../../../../lib/auth-storage', () => ({
   getAccessToken: vi.fn(() => 'mock-token'),
@@ -183,5 +184,136 @@ describe('CashShiftsView — Quick Links', () => {
     render(<CashShiftsView />);
     await screen.findByTestId('cash-shifts-empty-state');
     expect(screen.getByRole('navigation', { name: /related cash management shortcuts/i })).toBeInTheDocument();
+  });
+});
+
+const availableDrawer: CashDrawer = {
+  id: 7,
+  openingBalance: 0,
+  currentBalance: 0,
+  closingBalance: null,
+  createdAt: '2026-08-05T08:00:00Z',
+  updatedAt: '2026-08-05T08:00:00Z',
+  status: 'Open',
+  merchant: { id: 1, name: 'Restaurant ABC' },
+  shift: { id: 1, name: 'Shift 1', startTime: '2026-08-05T08:00:00Z', endTime: '2026-08-05T16:00:00Z', status: 'ACTIVE', merchant: { id: 1, name: 'Restaurant ABC' } },
+  openedByCollaborator: { id: 10, name: 'John Doe', role: 'WAITER' },
+  closedByCollaborator: null,
+};
+
+const busyDrawer: CashDrawer = { ...availableDrawer, id: 3 };
+const closedDrawer: CashDrawer = { ...availableDrawer, id: 9, status: 'Close' };
+
+function mockFetchSequence(responses: Array<{ status?: number; data: unknown }>) {
+  let call = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      const r = responses[Math.min(call, responses.length - 1)];
+      call += 1;
+      const status = r.status ?? 200;
+      return {
+        status,
+        ok: status >= 200 && status < 300,
+        json: async () => ({ statusCode: status, message: 'ok', data: r.data }),
+      };
+    }),
+  );
+}
+
+describe('CashShiftsView — Open Cash Shift', () => {
+  it('lists only drawers that are Open and have no active shift', async () => {
+    // openShift occupies drawer #3 (busyDrawer); drawer #9 is Close; drawer #7 is available.
+    mockFetchSequence([
+      { data: [openShift] }, // initial GET /cash-shifts (openShift.cashDrawerId === 3)
+      { data: [availableDrawer, busyDrawer, closedDrawer] }, // GET /cash-drawers when the modal opens
+    ]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /open cash shift/i }));
+    const dialog = await screen.findByRole('dialog', { name: /open cash shift/i });
+    const select = within(dialog).getByLabelText(/cash drawer/i);
+
+    expect(within(select).getByRole('option', { name: /#CD-7/i })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: /#CD-3/i })).not.toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: /#CD-9/i })).not.toBeInTheDocument();
+  });
+
+  it('validates drawer selection and opening balance, submits, and refetches the list', async () => {
+    mockFetchSequence([
+      { data: [] },
+      { data: [availableDrawer] },
+    ]);
+    render(<CashShiftsView />);
+    await screen.findByTestId('cash-shifts-empty-state');
+
+    // The empty state renders its own "Open Cash Shift" CTA alongside the toolbar
+    // button (both invoke the same handler), so two elements share this accessible
+    // name here — disambiguate rather than assert singularity.
+    await userEvent.click(screen.getAllByRole('button', { name: /open cash shift/i })[0]);
+    const dialog = await screen.findByRole('dialog', { name: /open cash shift/i });
+    const submitButton = within(dialog).getByRole('button', { name: /open shift/i });
+    expect(submitButton).toBeDisabled();
+
+    await userEvent.selectOptions(within(dialog).getByLabelText(/cash drawer/i), '7');
+    await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
+    expect(submitButton).toBeEnabled();
+
+    const newShift: CashShift = { ...openShift, id: 6, cashDrawerId: 7, openingBalance: 100 };
+    const fetchMock = vi.fn(async (_url: unknown, options?: { method?: string }) => {
+      if (options?.method === 'POST') {
+        return { status: 201, ok: true, json: async () => ({ statusCode: 201, message: 'ok', data: newShift }) };
+      }
+      return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: [newShift] }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/cash-shifts'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ cashDrawerId: 7, openingBalance: 100 }),
+        }),
+      );
+    });
+    expect(await screen.findByText(/cash shift opened successfully/i)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /open cash shift/i })).not.toBeInTheDocument();
+    expect(await screen.findByText('#CS-6')).toBeInTheDocument();
+  });
+
+  it('shows the backend conflict message inline in the dialog and keeps it open', async () => {
+    mockFetchSequence([
+      { data: [] },
+      { data: [availableDrawer] },
+    ]);
+    render(<CashShiftsView />);
+    await screen.findByTestId('cash-shifts-empty-state');
+
+    // The empty state renders its own "Open Cash Shift" CTA alongside the toolbar
+    // button (both invoke the same handler), so two elements share this accessible
+    // name here — disambiguate rather than assert singularity.
+    await userEvent.click(screen.getAllByRole('button', { name: /open cash shift/i })[0]);
+    const dialog = await screen.findByRole('dialog', { name: /open cash shift/i });
+    await userEvent.selectOptions(within(dialog).getByLabelText(/cash drawer/i), '7');
+    await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 409,
+        ok: false,
+        json: async () => ({
+          message:
+            'Cash Drawer #7 already has an active shift session (#CS-12) in progress. Please close the active shift before opening a new one.',
+        }),
+      }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: /open shift/i }));
+
+    await screen.findByText(/cash drawer #7 already has an active shift session \(#cs-12\)/i);
+    expect(screen.getByRole('dialog', { name: /open cash shift/i })).toBeInTheDocument();
   });
 });
