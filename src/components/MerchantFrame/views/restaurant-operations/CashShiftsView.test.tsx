@@ -137,6 +137,16 @@ describe('CashShiftsView — data fetch', () => {
     render(<CashShiftsView />);
     expect(await screen.findByTestId('cash-shifts-empty-state')).toBeInTheDocument();
   });
+
+  it('shows the exact cashier-facing empty state copy', async () => {
+    mockFetchOnce([]);
+    render(<CashShiftsView />);
+    expect(
+      await screen.findByText(
+        "No cashier shift sessions found. Click 'Open Cash Shift' to start a new cashier session.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('CashShiftsView — grid rendering', () => {
@@ -152,7 +162,7 @@ describe('CashShiftsView — grid rendering', () => {
     // row — assert presence, not singularity, matching the OPEN/CLOSED pattern below.
     expect(screen.getAllByText('$100.00').length).toBeGreaterThan(0);
     expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('In Service')).toBeInTheDocument();
+    expect(screen.getByText('Active Shift')).toBeInTheDocument();
     expect(screen.getAllByText('OPEN').length).toBeGreaterThan(0);
 
     expect(screen.getByText('#CS-2')).toBeInTheDocument();
@@ -258,6 +268,17 @@ describe('CashShiftsView — detail modal', () => {
     const dialog = await screen.findByRole('dialog', { name: /cash shift details/i });
 
     expect(within(dialog).getByText('-$20.00')).toHaveClass('text-[#ae001a]');
+  });
+
+  it('shows "Active Shift" in the Detail Modal Closed By row for an open shift', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash shift 1 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash shift details/i });
+
+    expect(within(dialog).getByText('Active Shift')).toBeInTheDocument();
   });
 });
 

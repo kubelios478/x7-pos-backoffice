@@ -119,7 +119,7 @@ const CashShiftDetailModal: React.FC<CashShiftDetailModalProps> = ({ shift, onCl
                 ? `${shift.closedByCollaborator.name} (${shift.closedByCollaborator.role}) — ${
                     shift.closedAt ? formatDateTime(shift.closedAt) : ''
                   }`
-                : 'In Service'}
+                : 'Active Shift'}
             </p>
           </div>
           <div>
@@ -672,7 +672,7 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
         >
           <span className="material-symbols-outlined text-[#d51f2c] text-6xl">point_of_sale</span>
           <p className="text-[#5f5e5e] mt-4 max-w-md text-sm leading-relaxed">
-            No cash shift sessions found. Click &apos;Open Cash Shift&apos; to start a new session.
+            No cashier shift sessions found. Click &apos;Open Cash Shift&apos; to start a new cashier session.
           </p>
           <button
             type="button"
@@ -788,7 +788,7 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                             <p className="font-semibold text-[#1d1c17]">{shift.closedByCollaborator.name}</p>
                           ) : (
                             <span className="bg-blue-500/10 text-blue-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
-                              In Service
+                              Active Shift
                             </span>
                           )}
                         </td>
