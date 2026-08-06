@@ -683,6 +683,15 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                     Opening Balance
                   </th>
                   <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    System Total
+                  </th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Declared Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Variance
+                  </th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                     Opened By
                   </th>
                   <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
@@ -702,6 +711,9 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                       <tr key={i}>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-40" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-14 mx-auto" /></td>
@@ -711,7 +723,7 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                   : isFilteredEmpty
                   ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center">
+                      <td colSpan={9} className="px-6 py-10 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <span className="material-symbols-outlined text-[#5f5e5e] text-4xl">search_off</span>
                           <p className="text-sm text-[#5f5e5e]">No cash shift sessions match your active filters</p>
@@ -733,6 +745,19 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                           </p>
                         </td>
                         <td className="px-6 py-4">{formatCurrency(shift.openingBalance)}</td>
+                        <td className="px-6 py-4">
+                          {shift.status === 'OPEN'
+                            ? '--'
+                            : shift.systemAmount == null
+                              ? '--'
+                              : formatCurrency(shift.systemAmount)}
+                        </td>
+                        <td className="px-6 py-4">
+                          {shift.declaredAmount == null ? '--' : formatCurrency(shift.declaredAmount)}
+                        </td>
+                        <td className={`px-6 py-4 ${varianceColorClass(shift.difference)}`}>
+                          {shift.difference == null ? '--' : formatVariance(shift.difference)}
+                        </td>
                         <td className="px-6 py-4">
                           <p className="font-semibold text-[#1d1c17]">{shift.openedByCollaborator.name}</p>
                           <p className="text-[11px] text-[#5f5e5e] mt-1">{formatDateTime(shift.openedAt)}</p>

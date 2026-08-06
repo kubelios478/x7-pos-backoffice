@@ -173,6 +173,30 @@ describe('CashShiftsView — grid rendering', () => {
 
     expect(screen.queryByText('10', { selector: 'td' })).not.toBeInTheDocument();
   });
+
+  it('shows System Total, Declared Amount, and Variance columns for a closed reconciliation', async () => {
+    mockFetchOnce([discrepancyShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-5');
+
+    const row = screen.getByTestId('cash-shift-row-5');
+    expect(within(row).getByText('$120.00')).toBeInTheDocument(); // System Total
+    // discrepancyShift's openingBalance (100) and declaredAmount (100) share the
+    // same literal value, so "$100.00" legitimately appears twice in this row.
+    expect(within(row).getAllByText('$100.00').length).toBe(2);
+    expect(within(row).getByText('-$20.00')).toHaveClass('text-[#ae001a]');
+  });
+
+  it('hides System Total in the grid while the shift is OPEN, even though the fetched record has a non-null value', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    const row = screen.getByTestId('cash-shift-row-1');
+    expect(within(row).queryByText('$250.00')).not.toBeInTheDocument();
+    // System Total, Declared Amount, and Variance are all "--" while OPEN.
+    expect(within(row).getAllByText('--').length).toBe(3);
+  });
 });
 
 describe('CashShiftsView — detail modal', () => {
