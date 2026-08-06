@@ -68,6 +68,16 @@ const discrepancyShift: CashShift = {
   status: 'DISCREPANCY',
 };
 
+const surplusShift: CashShift = {
+  ...closedShift,
+  id: 8,
+  cashDrawerId: 8,
+  systemAmount: 100,
+  declaredAmount: 115,
+  difference: 15,
+  status: 'DISCREPANCY',
+};
+
 describe('CashShiftsView — data fetch', () => {
   it('fetches cash shifts on mount with no query params', async () => {
     mockFetchOnce([]);
@@ -194,6 +204,28 @@ describe('CashShiftsView — detail modal', () => {
 
     expect(within(dialog).queryByText('$250.00')).not.toBeInTheDocument();
     expect(within(dialog).getAllByText(/available after close/i).length).toBeGreaterThan(0);
+  });
+
+  it('colors the Detail Modal variance green for a surplus', async () => {
+    mockFetchOnce([surplusShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-8');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash shift 8 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash shift details/i });
+
+    expect(within(dialog).getByText('+$15.00')).toHaveClass('text-green-600');
+  });
+
+  it('colors the Detail Modal variance red for a shortage', async () => {
+    mockFetchOnce([discrepancyShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-5');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash shift 5 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash shift details/i });
+
+    expect(within(dialog).getByText('-$20.00')).toHaveClass('text-[#ae001a]');
   });
 });
 
@@ -432,6 +464,40 @@ describe('CashShiftsView — Close Shift', () => {
     const resultDialog = await screen.findByRole('dialog', { name: /shift closed/i });
     expect(within(resultDialog).getByText('DISCREPANCY')).toBeInTheDocument();
     expect(within(resultDialog).getByText('-$20.00')).toBeInTheDocument();
+    expect(within(resultDialog).getByText('-$20.00')).toHaveClass('text-[#ae001a]');
+  });
+
+  it('shows a green surplus variance in the reconciliation result modal', async () => {
+    mockFetchOnce([openShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /close cash shift 1/i }));
+    const dialog = await screen.findByRole('dialog', { name: /close cash shift/i });
+    await userEvent.type(within(dialog).getByLabelText(/declared amount/i), '115');
+
+    const surplusResponse: CashShift = {
+      ...openShift,
+      systemAmount: 100,
+      declaredAmount: 115,
+      difference: 15,
+      status: 'DISCREPANCY',
+      closedAt: '2026-08-05T16:00:00Z',
+      closedByCollaborator: { id: 10, name: 'John Doe', role: 'WAITER' },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, options?: { method?: string }) => {
+        if (options?.method === 'POST') {
+          return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: surplusResponse }) };
+        }
+        return { status: 200, ok: true, json: async () => ({ statusCode: 200, message: 'ok', data: [surplusResponse] }) };
+      }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm close/i }));
+
+    const resultDialog = await screen.findByRole('dialog', { name: /shift closed/i });
+    expect(within(resultDialog).getByText('+$15.00')).toHaveClass('text-green-600');
   });
 
   it('shows a close-shift error inline in the dialog and keeps it open', async () => {

@@ -36,6 +36,18 @@ export function formatDateTime(value: string): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
+export function varianceColorClass(difference: number | null): string {
+  if (difference == null) return 'text-[#5f5e5e]';
+  if (difference === 0) return 'text-[#1d1c17]';
+  return difference > 0 ? 'text-green-600 font-bold' : 'text-[#ae001a] font-bold';
+}
+
+export function formatVariance(difference: number): string {
+  return difference === 0
+    ? formatCurrency(0)
+    : `${difference > 0 ? '+' : '-'}${formatCurrency(Math.abs(difference))}`;
+}
+
 interface CashShiftDetailModalProps {
   shift: CashShift;
   onClose: () => void;
@@ -90,11 +102,7 @@ const CashShiftDetailModal: React.FC<CashShiftDetailModalProps> = ({ shift, onCl
           {!isOpenShift && shift.difference != null && (
             <div>
               <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Difference</p>
-              <p className={shift.difference === 0 ? 'text-[#1d1c17]' : 'font-bold text-orange-700'}>
-                {shift.difference === 0
-                  ? formatCurrency(0)
-                  : `${shift.difference > 0 ? '+' : '-'}${formatCurrency(Math.abs(shift.difference))}`}
-              </p>
+              <p className={varianceColorClass(shift.difference)}>{formatVariance(shift.difference)}</p>
             </div>
           )}
           <div>
@@ -325,7 +333,6 @@ interface CashShiftResultModalProps {
 
 const CashShiftResultModal: React.FC<CashShiftResultModalProps> = ({ shift, onClose }) => {
   const difference = shift.difference ?? 0;
-  const isBalanced = difference === 0;
 
   return createPortal(
     <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-center p-4">
@@ -347,9 +354,7 @@ const CashShiftResultModal: React.FC<CashShiftResultModalProps> = ({ shift, onCl
         </div>
         <div className="mt-4">
           <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Variance</p>
-          <p className={isBalanced ? 'text-[#1d1c17]' : 'font-bold text-orange-700'}>
-            {isBalanced ? formatCurrency(0) : `${difference > 0 ? '+' : '-'}${formatCurrency(Math.abs(difference))}`}
-          </p>
+          <p className={varianceColorClass(difference)}>{formatVariance(difference)}</p>
         </div>
         <div className="mt-4">
           <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${STATUS_BADGE_CLASSES[shift.status]}`}>
