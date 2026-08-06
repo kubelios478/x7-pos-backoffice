@@ -387,6 +387,7 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | CashShiftStatus>('');
+  const [drawerFilter, setDrawerFilter] = useState<'' | number>('');
 
   const fetchCashShifts = async () => {
     setLoading(true);
@@ -423,9 +424,15 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const drawerOptions = React.useMemo(
+    () => Array.from(new Set(shifts.map((s) => s.cashDrawerId))).sort((a, b) => a - b),
+    [shifts],
+  );
+
   const filteredShifts = React.useMemo(() => {
     return shifts.filter((shift) => {
       if (statusFilter && shift.status !== statusFilter) return false;
+      if (drawerFilter !== '' && shift.cashDrawerId !== drawerFilter) return false;
       const term = searchQuery.trim().toLowerCase();
       if (!term) return true;
       const sessionId = `#cs-${shift.id}`;
@@ -439,9 +446,9 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
         closedByName.includes(term)
       );
     });
-  }, [shifts, searchQuery, statusFilter]);
+  }, [shifts, searchQuery, statusFilter, drawerFilter]);
 
-  const hasActiveFilter = Boolean(searchQuery || statusFilter);
+  const hasActiveFilter = Boolean(searchQuery || statusFilter || drawerFilter !== '');
   const isFilteredEmpty = !loading && !error && hasActiveFilter && filteredShifts.length === 0;
   const isTrueEmpty = !loading && !error && shifts.length === 0 && !hasActiveFilter;
 
@@ -457,6 +464,7 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
   const clearFilters = () => {
     setSearchQuery('');
     setStatusFilter('');
+    setDrawerFilter('');
   };
 
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -622,6 +630,19 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
           <option value="CLOSED">Closed</option>
           <option value="DISCREPANCY">Discrepancy</option>
           <option value="AUDITED">Audited</option>
+        </select>
+        <select
+          value={drawerFilter}
+          onChange={(e) => setDrawerFilter(e.target.value === '' ? '' : Number(e.target.value))}
+          className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by cash drawer"
+        >
+          <option value="">All Drawers</option>
+          {drawerOptions.map((id) => (
+            <option key={id} value={id}>
+              #CD-{id}
+            </option>
+          ))}
         </select>
         {hasActiveFilter && (
           <button

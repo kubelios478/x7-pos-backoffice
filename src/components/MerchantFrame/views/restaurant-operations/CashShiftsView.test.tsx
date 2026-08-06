@@ -145,7 +145,8 @@ describe('CashShiftsView — grid rendering', () => {
     render(<CashShiftsView />);
 
     expect(await screen.findByText('#CS-1')).toBeInTheDocument();
-    expect(screen.getByText('#CD-3')).toBeInTheDocument();
+    const row1 = screen.getByTestId('cash-shift-row-1');
+    expect(within(row1).getByText('#CD-3')).toBeInTheDocument();
     // Both openShift and closedShift share the same literal openingBalance (100)
     // in this fixture set, so "$100.00" legitimately appears in more than one
     // row — assert presence, not singularity, matching the OPEN/CLOSED pattern below.
@@ -571,5 +572,41 @@ describe('CashShiftsView — Audited status', () => {
 
     const select = screen.getByLabelText(/filter by status/i);
     expect(within(select).getByRole('option', { name: /audited/i })).toBeInTheDocument();
+  });
+});
+
+describe('CashShiftsView — Cash Drawer filter', () => {
+  it('lists only the drawer IDs present in the fetched shifts', async () => {
+    mockFetchOnce([openShift, closedShift]); // drawers #3 and #4
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    const select = screen.getByLabelText(/filter by cash drawer/i);
+    expect(within(select).getByRole('option', { name: '#CD-3' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: '#CD-4' })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: '#CD-6' })).not.toBeInTheDocument();
+  });
+
+  it('filters the grid to only the selected drawer', async () => {
+    mockFetchOnce([openShift, closedShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.selectOptions(screen.getByLabelText(/filter by cash drawer/i), '4');
+
+    expect(screen.queryByText('#CS-1')).not.toBeInTheDocument();
+    expect(screen.getByText('#CS-2')).toBeInTheDocument();
+  });
+
+  it('clears the drawer filter along with the other filters', async () => {
+    mockFetchOnce([openShift, closedShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-1');
+
+    await userEvent.selectOptions(screen.getByLabelText(/filter by cash drawer/i), '4');
+    await userEvent.click(screen.getByRole('button', { name: /clear filters/i }));
+
+    expect(screen.getByLabelText(/filter by cash drawer/i)).toHaveValue('');
+    expect(screen.getByText('#CS-1')).toBeInTheDocument();
   });
 });
