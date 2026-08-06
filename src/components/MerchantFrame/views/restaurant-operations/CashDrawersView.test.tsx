@@ -775,3 +775,14 @@ describe('CashDrawersView — cash management quick links', () => {
   });
 });
 
+describe('CashDrawersView — quick create button', () => {
+  it('renders a floating quick-create button that opens the Open Cash Drawer modal', async () => {
+    mockFetchOnce([]);
+    render(<CashDrawersView />);
+    await screen.findByTestId('cash-drawers-empty-state');
+
+    await userEvent.click(screen.getByRole('button', { name: /quick create cash drawer/i }));
+    expect(await screen.findByRole('dialog', { name: /open cash drawer/i })).toBeInTheDocument();
+  });
+});
+

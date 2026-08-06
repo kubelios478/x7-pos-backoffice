@@ -631,3 +631,14 @@ describe('CashShiftsView — Cash Drawer filter', () => {
     expect(screen.getByText('#CS-1')).toBeInTheDocument();
   });
 });
+
+describe('CashShiftsView — quick create button', () => {
+  it('renders a floating quick-create button that opens the Open Cash Shift modal', async () => {
+    mockFetchOnce([]);
+    render(<CashShiftsView />);
+    await screen.findByTestId('cash-shifts-empty-state');
+
+    await userEvent.click(screen.getByRole('button', { name: /quick create cash shift/i }));
+    expect(await screen.findByRole('dialog', { name: /open cash shift/i })).toBeInTheDocument();
+  });
+});

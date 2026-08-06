@@ -831,6 +831,15 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
 
       <CashManagementQuickLinks activeModule="cash-shifts" onNavigate={onNavigate} />
 
+      <button
+        type="button"
+        onClick={openCreateModal}
+        aria-label="Quick create cash shift"
+        className="fixed bottom-8 right-8 w-14 h-14 bg-[#ae001a] hover:bg-[#930015] rounded-full shadow-lg flex items-center justify-center text-white transition-colors"
+      >
+        <span className="material-symbols-outlined text-2xl">add</span>
+      </button>
+
       {detailShift && <CashShiftDetailModal shift={detailShift} onClose={() => setDetailShift(null)} />}
 
       {formModalOpen && (
