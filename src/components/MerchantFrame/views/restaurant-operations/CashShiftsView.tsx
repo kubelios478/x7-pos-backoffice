@@ -12,6 +12,7 @@ export const STATUS_BADGE_CLASSES: Record<CashShiftStatus, string> = {
   OPEN: 'bg-green-500/10 text-green-600',
   CLOSED: 'bg-[#5f5e5e]/20 text-[#5f5e5e]',
   DISCREPANCY: 'bg-orange-500/10 text-orange-700',
+  AUDITED: 'bg-purple-500/10 text-purple-700',
 };
 
 // The backend stores balances as Postgres `decimal` columns with no server-side
@@ -620,6 +621,7 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
           <option value="OPEN">Open</option>
           <option value="CLOSED">Closed</option>
           <option value="DISCREPANCY">Discrepancy</option>
+          <option value="AUDITED">Audited</option>
         </select>
         {hasActiveFilter && (
           <button

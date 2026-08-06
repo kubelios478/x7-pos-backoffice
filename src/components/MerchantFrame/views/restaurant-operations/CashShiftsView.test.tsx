@@ -78,6 +78,13 @@ const surplusShift: CashShift = {
   status: 'DISCREPANCY',
 };
 
+const auditedShift: CashShift = {
+  ...closedShift,
+  id: 9,
+  cashDrawerId: 9,
+  status: 'AUDITED',
+};
+
 describe('CashShiftsView — data fetch', () => {
   it('fetches cash shifts on mount with no query params', async () => {
     mockFetchOnce([]);
@@ -521,5 +528,24 @@ describe('CashShiftsView — Close Shift', () => {
 
     await screen.findByText(/the cash shift is already closed/i);
     expect(screen.getByRole('dialog', { name: /close cash shift/i })).toBeInTheDocument();
+  });
+});
+
+describe('CashShiftsView — Audited status', () => {
+  it('renders a purple Audited badge for AUDITED shifts', async () => {
+    mockFetchOnce([auditedShift]);
+    render(<CashShiftsView />);
+    await screen.findByText('#CS-9');
+
+    expect(screen.getAllByText('AUDITED')[0]).toHaveClass('text-purple-700');
+  });
+
+  it('offers an Audited option in the status filter', async () => {
+    mockFetchOnce([]);
+    render(<CashShiftsView />);
+    await screen.findByTestId('cash-shifts-empty-state');
+
+    const select = screen.getByLabelText(/filter by status/i);
+    expect(within(select).getByRole('option', { name: /audited/i })).toBeInTheDocument();
   });
 });

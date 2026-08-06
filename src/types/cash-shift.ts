@@ -1,4 +1,4 @@
-export type CashShiftStatus = 'OPEN' | 'CLOSED' | 'DISCREPANCY';
+export type CashShiftStatus = 'OPEN' | 'CLOSED' | 'DISCREPANCY' | 'AUDITED';
 
 export interface CashShiftCollaboratorRef {
   id: number;
