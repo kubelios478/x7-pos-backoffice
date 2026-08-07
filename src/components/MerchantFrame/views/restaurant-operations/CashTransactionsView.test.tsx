@@ -185,8 +185,24 @@ describe('CashTransactionsView — View Details drawer', () => {
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getByText(saleTxn.createdAt)).toBeInTheDocument();
+    // createdAt renders twice by design: once in the metadata header, once in the Audit Trail body section.
+    expect(within(dialog).getAllByText(saleTxn.createdAt).length).toBe(2);
     expect(within(dialog).getByText(detailTxn.updatedAt)).toBeInTheDocument();
+  });
+
+  it('shows the exact created_at timestamp and performing collaborator in the metadata header', async () => {
+    const user = userEvent.setup();
+    const detailTxn: CashTransaction = { ...saleTxn, collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' } };
+    mockFetchWithDetail([saleTxn], detailTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+    expect(within(dialog).getByText('#CT-1 Details')).toBeInTheDocument();
+    expect(within(dialog).getByText('active')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(saleTxn.createdAt).length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getByText(/#EMP-5.*Jane Cashier/)).toBeInTheDocument();
   });
 
   it('closes the detail drawer when the close button is clicked', async () => {

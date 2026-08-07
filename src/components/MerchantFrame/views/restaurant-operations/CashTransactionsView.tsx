@@ -84,20 +84,29 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
         aria-label="Cash Transaction Details"
         className="relative bg-white border-l border-[#e8e2d8] shadow-2xl w-full max-w-lg h-full overflow-hidden animate-slide-in text-left flex flex-col"
       >
-        <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[11px] uppercase tracking-widest">#CT-{transaction.id} Details</span>
-            <span
-              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                CASH_TRANSACTION_STATUS_BADGE_CLASSES[transaction.status] ?? 'bg-white/10 text-white'
-              }`}
-            >
-              {transaction.status}
+        <div className="bg-[#222222] p-4 text-white flex flex-col gap-2 shrink-0">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[11px] uppercase tracking-widest">#CT-{transaction.id} Details</span>
+              <span
+                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                  CASH_TRANSACTION_STATUS_BADGE_CLASSES[transaction.status] ?? 'bg-white/10 text-white'
+                }`}
+              >
+                {transaction.status}
+              </span>
+            </div>
+            <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div className="flex justify-between items-center text-white/70 text-[11px]">
+            <span className="font-mono">{transaction.createdAt}</span>
+            <span>
+              #EMP-{transaction.collaboratorId}
+              {transaction.collaborator ? ` — ${transaction.collaborator.name}` : ''}
             </span>
           </div>
-          <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
-            <span className="material-symbols-outlined">close</span>
-          </button>
         </div>
         <div className="p-6 space-y-4 overflow-y-auto flex-1 text-sm">
           <div>
@@ -131,18 +140,9 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
               <p>No shift linked</p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Amount</p>
-              <p className={amountColorClass(transaction.type)}>{formatCurrency(transaction.amount)}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Collaborator</p>
-              <p>
-                #EMP-{transaction.collaboratorId}
-                {transaction.collaborator ? ` — ${transaction.collaborator.name}` : ''}
-              </p>
-            </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Amount</p>
+            <p className={amountColorClass(transaction.type)}>{formatCurrency(transaction.amount)}</p>
           </div>
           <div>
             <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Linked Order</p>
