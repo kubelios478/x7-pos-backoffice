@@ -176,22 +176,43 @@ describe('CashTransactionsView — View Details modal', () => {
 });
 
 describe('CashTransactionsView — type and drawer filters', () => {
-  it('populates the drawer filter from GET /cash-drawers and requests it as a query param on selection', async () => {
+  it('populates the drawer filter from GET /cash-drawers (not from transaction ids) and requests it as a query param on selection', async () => {
     const user = userEvent.setup();
-    mockFetchOnce([saleTxn]);
-    // fetchCashTransactions runs first (mount), then the drawer-options fetch also resolves
-    // via the same mock since mockFetchOnce stubs `fetch` globally for both calls.
-    // Both mount-time fetches resolve with [saleTxn], so the drawer-options fetch (mapping
-    // by `id`) populates the drawer filter with saleTxn.id (1), not its cashDrawerId (3).
+    // URL-aware mock: /cash-drawers returns distinct drawer ids (3, 7) that don't overlap
+    // with saleTxn's id (1) or cashDrawerId (3-as-transaction-field), so we can tell the
+    // dropdown options really came from the drawers endpoint mapped via `d.id`.
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve({
+        status: 200,
+        ok: true,
+        json: async () =>
+          url.includes('/cash-drawers')
+            ? { statusCode: 200, message: 'ok', data: [{ id: 3 }, { id: 7 }] }
+            : { statusCode: 200, message: 'ok', data: [saleTxn], paginationMeta },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
     render(<CashTransactionsView />);
     await screen.findByText('#CT-1');
 
-    mockFetchOnce([saleTxn]);
-    await user.selectOptions(screen.getByRole('combobox', { name: /filter by cash drawer/i }), '1');
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/cash-drawers?limit=100'), expect.anything());
+    });
+
+    const drawerSelect = screen.getByRole('combobox', { name: /filter by cash drawer/i });
+    await waitFor(() => {
+      expect(within(drawerSelect).getByText('#CD-3')).toBeInTheDocument();
+      expect(within(drawerSelect).getByText('#CD-7')).toBeInTheDocument();
+    });
+    // saleTxn.id (1) must not leak into the options via a wrong-field/wrong-endpoint mapping
+    expect(within(drawerSelect).queryByText('#CD-1')).not.toBeInTheDocument();
+
+    await user.selectOptions(drawerSelect, '3');
 
     await waitFor(() => {
-      const calledUrl = (fetch as any).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('cashDrawerId=1');
+      const cashTransactionsCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes('/cash-transactions'));
+      expect(cashTransactionsCalls[cashTransactionsCalls.length - 1]?.[0]).toContain('cashDrawerId=3');
     });
   });
 
@@ -262,6 +283,27 @@ describe('CashTransactionsView — pagination', () => {
     render(<CashTransactionsView />);
     expect(await screen.findByText(/page 1 of 2/i)).toBeInTheDocument();
   });
+
+  it('fetches the previous page when Previous is clicked', async () => {
+    const user = userEvent.setup();
+    // The component's page counter is local state starting at 1, so to reach page 2
+    // (where Previous is enabled) we first click Next, then click Previous.
+    mockFetchOnce([saleTxn], pageOneMeta);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    mockFetchOnce([{ ...saleTxn, id: 11 }], pageTwoMeta);
+    await user.click(screen.getByRole('button', { name: /next page/i }));
+    await screen.findByText('#CT-11');
+    expect(screen.getByRole('button', { name: /previous page/i })).toBeEnabled();
+
+    mockFetchOnce([saleTxn], pageOneMeta);
+    await user.click(screen.getByRole('button', { name: /previous page/i }));
+
+    await screen.findByText('#CT-1');
+    const calledUrl = (fetch as any).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('page=1');
+  });
 });
 
 describe('CashTransactionsView — search and row indicators', () => {
@@ -278,6 +320,21 @@ describe('CashTransactionsView — search and row indicators', () => {
     expect(screen.getByText('#CT-2')).toBeInTheDocument();
   });
 
+  it('shows a filtered count in the header when a search query narrows the results, and the server total when cleared', async () => {
+    const user = userEvent.setup();
+    const otherTxn: CashTransaction = { ...saleTxn, id: 2, cashDrawerId: 9, notes: 'Register recount' };
+    mockFetchOnce([saleTxn, otherTxn], { ...paginationMeta, total: 15 });
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+    expect(screen.getByText('15 transactions')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search cash transactions/i), 'recount');
+    expect(await screen.findByText('1 of 15 transactions')).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/search cash transactions/i));
+    expect(await screen.findByText('15 transactions')).toBeInTheDocument();
+  });
+
   it('shows a filtered-empty state with a clear-filters link when search matches nothing', async () => {
     const user = userEvent.setup();
     mockFetchOnce([saleTxn]);
@@ -286,7 +343,9 @@ describe('CashTransactionsView — search and row indicators', () => {
 
     await user.type(screen.getByLabelText(/search cash transactions/i), 'nonexistent-term');
     expect(await screen.findByText(/no cash transactions match your active filters/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+    // Both the filter-bar and the in-table "Clear Filters" buttons are visible here;
+    // target the in-table one specifically via its distinct accessible name.
+    await user.click(screen.getByRole('button', { name: /clear filters and show all transactions/i }));
     expect(await screen.findByText('#CT-1')).toBeInTheDocument();
   });
 
@@ -329,7 +388,9 @@ describe('CashTransactionsView — search and row indicators', () => {
     expect(screen.queryByTestId('cash-transactions-empty-state')).not.toBeInTheDocument();
 
     mockFetchOnce([saleTxn]);
-    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+    // Both the filter-bar and the in-table "Clear Filters" buttons are visible here;
+    // target the in-table one specifically via its distinct accessible name.
+    await user.click(screen.getByRole('button', { name: /clear filters and show all transactions/i }));
     expect(await screen.findByText('#CT-1')).toBeInTheDocument();
   });
 });

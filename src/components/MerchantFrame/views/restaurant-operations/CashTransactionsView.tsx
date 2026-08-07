@@ -294,7 +294,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
             </option>
           ))}
         </select>
-        {hasActiveFilter && !isFilteredEmpty && (
+        {hasActiveFilter && (
           <button
             type="button"
             onClick={clearFilters}
@@ -326,7 +326,11 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
               CASH TRANSACTIONS
             </span>
             <span className="text-white/50 text-xs">
-              {loading ? 'Loading...' : `${paginationMeta?.total ?? transactions.length} transactions`}
+              {loading
+                ? 'Loading...'
+                : searchQuery.trim()
+                  ? `${filteredTransactions.length} of ${paginationMeta?.total ?? transactions.length} transactions`
+                  : `${paginationMeta?.total ?? transactions.length} transactions`}
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -383,9 +387,10 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                             <button
                               type="button"
                               onClick={clearFilters}
+                              aria-label="Clear filters and show all transactions"
                               className="text-[#ae001a] text-sm font-semibold hover:underline"
                             >
-                              Clear filters
+                              Clear Filters
                             </button>
                           </div>
                         </td>
