@@ -103,7 +103,7 @@ const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
   'cash-movements': {
     title: 'Drawer Movements',
     route: '/cash-management/movements',
-    icon: 'trending_up'
+    icon: 'moving'
   }
 };
 
