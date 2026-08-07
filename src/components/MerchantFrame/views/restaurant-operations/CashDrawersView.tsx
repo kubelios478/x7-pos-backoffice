@@ -746,12 +746,12 @@ export const CashDrawersView: React.FC<CashDrawersViewProps> = ({ onNavigate }) 
                           <p className="text-[11px] text-[#5f5e5e] mt-1">{formatDateTime(drawer.createdAt)}</p>
                         </td>
                         <td className="px-6 py-4">
-                          {drawer.closedByCollaborator ? (
-                            <p className="font-semibold text-[#1d1c17]">{drawer.closedByCollaborator.name}</p>
-                          ) : (
+                          {drawer.status === 'Open' ? (
                             <span className="bg-blue-500/10 text-blue-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                               In Service
                             </span>
+                          ) : (
+                            <p className="font-semibold text-[#1d1c17]">{drawer.closedByCollaborator?.name ?? '--'}</p>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
