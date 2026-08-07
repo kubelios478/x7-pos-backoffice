@@ -26,6 +26,10 @@ export function formatTypeLabel(type: CashTransactionType): string {
   return type.replace(/_/g, ' ').toUpperCase();
 }
 
+export function formatLoyaltySource(source: string): string {
+  return source.replace(/_/g, ' ');
+}
+
 export function amountColorClass(type: CashTransactionType): string {
   if (isBalanceIncreasingType(type)) return 'text-green-600 font-bold';
   if (isBalanceDecreasingType(type)) return 'text-[#ae001a] font-bold';
@@ -123,6 +127,43 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
               </p>
             ) : (
               <p>No shift linked</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Loyalty Points Ledger</p>
+            {loading ? (
+              <div className="h-16 bg-[#ece8e0] rounded animate-pulse mt-2" data-testid="loyalty-section-loading" />
+            ) : error ? (
+              <p className="text-[#ae001a] text-xs mt-1">{error}</p>
+            ) : transaction.loyaltyPointTransactions && transaction.loyaltyPointTransactions.length > 0 ? (
+              <table className="w-full mt-2 border-collapse" data-testid="loyalty-points-table">
+                <thead>
+                  <tr className="border-b border-[#e8e2d8] text-left">
+                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Date</th>
+                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Source</th>
+                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Description</th>
+                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e] text-right">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transaction.loyaltyPointTransactions.map((lpt) => (
+                    <tr key={lpt.id} className="border-b border-[#e8e2d8]/60">
+                      <td className="py-1.5">{formatDateTime(lpt.createdAt)}</td>
+                      <td className="py-1.5">{formatLoyaltySource(lpt.source)}</td>
+                      <td className="py-1.5">{lpt.description || '—'}</td>
+                      <td
+                        className={`py-1.5 text-right font-bold ${
+                          lpt.points > 0 ? 'text-green-600' : lpt.points < 0 ? 'text-[#ae001a]' : 'text-[#5f5e5e]'
+                        }`}
+                      >
+                        {lpt.points > 0 ? `+${lpt.points}` : lpt.points}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-sm text-[#5f5e5e] mt-1">No loyalty point activity linked to this transaction.</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">

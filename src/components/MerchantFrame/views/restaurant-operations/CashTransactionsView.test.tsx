@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CashTransactionsView, formatDateTime, formatTypeLabel } from './CashTransactionsView';
+import { CashTransactionsView, formatDateTime, formatTypeLabel, formatLoyaltySource } from './CashTransactionsView';
 import type { CashTransaction } from '../../../../types/cash-transaction';
 
 vi.mock('../../../../lib/auth-storage', () => ({
@@ -533,6 +533,75 @@ describe('CashTransactionsView — drawer status, collaborator, and shift', () =
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
 
     expect(await within(dialog).findByText('No shift linked')).toBeInTheDocument();
+  });
+});
+
+describe('CashTransactionsView — Loyalty Points Ledger panel', () => {
+  function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () =>
+            url.includes(`/cash-transactions/${detail.id}`)
+              ? { statusCode: 200, message: 'ok', data: detail }
+              : { statusCode: 200, message: 'ok', data: list, paginationMeta },
+        }),
+      ),
+    );
+  }
+
+  const baseDetail: CashTransaction = {
+    ...saleTxn,
+    collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },
+    cashShift: null,
+  };
+
+  it('renders loyalty point rows with source, description, and signed points', async () => {
+    const user = userEvent.setup();
+    const detail: CashTransaction = {
+      ...baseDetail,
+      loyaltyPointTransactions: [
+        { id: 1, description: 'Points earned from order', source: 'ORDER', points: 150, loyaltyCustomerId: 3, createdAt: '2026-08-07T08:00:00Z' },
+        { id: 2, description: 'Redeemed for reward', source: 'REDEMPTION', points: -50, loyaltyCustomerId: 3, createdAt: '2026-08-07T09:00:00Z' },
+      ],
+    };
+    mockFetchWithDetail([saleTxn], detail);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const table = await screen.findByTestId('loyalty-points-table');
+
+    expect(within(table).getByText('Points earned from order')).toBeInTheDocument();
+    expect(within(table).getByText('+150')).toBeInTheDocument();
+    const earnedCell = within(table).getByText('+150');
+    expect(earnedCell.className).toContain('text-green-600');
+
+    expect(within(table).getByText('Redeemed for reward')).toBeInTheDocument();
+    expect(within(table).getByText('-50')).toBeInTheDocument();
+    const redeemedCell = within(table).getByText('-50');
+    expect(redeemedCell.className).toContain('text-[#ae001a]');
+  });
+
+  it('humanizes the source enum value', () => {
+    expect(formatLoyaltySource('MANUAL_ADJUST')).toBe('MANUAL ADJUST');
+    expect(formatLoyaltySource('ORDER')).toBe('ORDER');
+  });
+
+  it('shows the exact empty-state copy when there is no loyalty activity', async () => {
+    const user = userEvent.setup();
+    const detail: CashTransaction = { ...baseDetail, loyaltyPointTransactions: [] };
+    mockFetchWithDetail([saleTxn], detail);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    expect(
+      await screen.findByText('No loyalty point activity linked to this transaction.'),
+    ).toBeInTheDocument();
   });
 });
 
