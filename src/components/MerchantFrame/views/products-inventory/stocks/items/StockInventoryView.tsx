@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../../lib/auth-storage';
+import { getAccessToken, getStoredUser } from '../../../../../../lib/auth-storage';
 import { QuickLaunchPanel } from '../../../../shared/QuickLaunchPanel';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
 
@@ -20,12 +20,20 @@ interface Location {
   name: string;
 }
 
+interface Supply {
+  id: number;
+  name: string;
+  sku?: string | null;
+  code?: string | null;
+}
+
 interface StockItem {
   id: number;
   currentQty: number;
   minimumQty: number | null;
   product: Product | null;
   variant: Variant | null;
+  supply: Supply | null;
   location: Location | null;
 }
 
@@ -56,7 +64,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   const currentUser = getStoredUser();
-  const isAdministrator = currentUser?.role === 'merchant_admin';
+  const isAdministrator = ['merchant_admin', 'admin', 'super_admin', 'SaaS Owner'].includes(currentUser?.role || '');
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -101,50 +109,53 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      // 1. Cargar ubicaciones
-      let locationsData: Location[] = [];
-      try {
-        let locRes = await fetch(`${API_BASE}/v1/inventory/locations`, { headers });
-        if (!locRes.ok || locRes.status === 404 || locRes.status === 400) {
-          locRes = await fetch(`${API_BASE}/locations`, { headers });
-        }
-        if (locRes.ok) {
-          const body = await locRes.json();
-          locationsData = Array.isArray(body.data) ? body.data : (Array.isArray(body) ? body : []);
-        }
-      } catch (e) {
-        console.error('Failed to load locations', e);
-      }
-      setLocations(locationsData);
-
-      // 2. Cargar ítems de stock (con paginación alta para tener todos o la mayoría)
-      let itemsRes = await fetch(`${API_BASE}/v1/inventory/stock-items?limit=100`, { headers });
-      if (itemsRes.status === 401) {
-        clearAuthSession();
-        window.location.href = '/login';
-        return;
-      }
-      if (!itemsRes.ok || itemsRes.status === 404 || itemsRes.status === 400) {
-        // Fallback a /items (del backend)
-        itemsRes = await fetch(`${API_BASE}/items?limit=100`, { headers });
+      // Cargar ítems de stock (soporta materias primas /v1/raw-material-stock/items e ítems comerciales /items)
+      let itemsRes = await fetch(`${API_BASE}/v1/raw-material-stock/items?limit=100`, { headers });
+      if (!itemsRes.ok || itemsRes.status === 404) {
+        const fallbackItems = await fetch(`${API_BASE}/items?limit=100`, { headers });
+        if (fallbackItems.ok) itemsRes = fallbackItems;
       }
 
-      if (!itemsRes.ok) {
-        throw new Error('Could not retrieve stock inventory data.');
+      // Cargar ubicaciones de almacén
+      let locationsRes = await fetch(`${API_BASE}/v1/inventory/locations`, { headers });
+      if (!locationsRes.ok || locationsRes.status === 404 || locationsRes.status === 400) {
+        const fallbackLocations = await fetch(`${API_BASE}/locations`, { headers });
+        if (fallbackLocations.ok) locationsRes = fallbackLocations;
       }
 
-      const body = await itemsRes.json();
-      const data = Array.isArray(body.data) ? body.data : (Array.isArray(body) ? body : []);
-      setStockItems(data);
+      if (itemsRes.ok) {
+        const json = await itemsRes.json();
+        const data = json.data || json.items || json || [];
+        const rawItems = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const activeItems = rawItems.filter((i: any) => i.isActive !== false).map((i: any) => ({
+          ...i,
+          currentQty: Number(i.currentQty ?? i.current_qty ?? 0),
+          product: i.product || (i.supply ? { id: i.supply.id, name: i.supply.name, sku: i.supply.code || i.supply.sku } : null)
+        }));
+        setStockItems(activeItems);
+      } else {
+        throw new Error('Failed to fetch stock items from server.');
+      }
+
+
+      if (locationsRes.ok) {
+        const json = await locationsRes.json();
+        const data = json.data || json || [];
+        const rawLocations = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const activeLocations = rawLocations.filter((l: any) => l.isActive !== false);
+        setLocations(activeLocations);
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error loading stock inventory.');
+      setError('Failed to load stock control panel data. Please check your backend connection.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Abrir Modal de Ajuste de Stock
   const handleOpenAdjust = (item: StockItem) => {
+    if (!isAdministrator) return;
     setSelectedItemForAdjust(item);
     setAdjustValue(item.currentQty);
     setAdjustType('absolute');
@@ -181,12 +192,23 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
         payload
       });
 
-      // Usar directamente la ruta /items/:id/adjust que está confirmada en el backend
-      const res = await fetch(`${API_BASE}/items/${selectedItemForAdjust.id}/adjust`, {
+      // Intentar primero /v1/raw-material-stock/items/:id/adjust y fallback a /items/:id/adjust
+      let usedUrl = `${API_BASE}/v1/raw-material-stock/items/${selectedItemForAdjust.id}/adjust`;
+      let res = await fetch(usedUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
       });
+
+      if (!res.ok || res.status === 404) {
+        usedUrl = `${API_BASE}/items/${selectedItemForAdjust.id}/adjust`;
+        res = await fetch(usedUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+      }
+
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -207,34 +229,39 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
     }
   };
 
-  // Buscar movimientos de stock para el Drawer
+  // Navegar a la bitácora de movimientos filtrada por itemId (Deep-Linking)
   const handleViewActivityLogs = async (item: StockItem) => {
-    setSelectedItemForHistory(item);
-    setIsHistoryOpen(true);
-    setIsLoadingHistory(true);
-    setHistoryError(null);
-    setHistoryMovements([]);
+    window.history.pushState({}, '', `/inventory/movements?itemId=${item.id}`);
+    if (onNavigate) {
+      onNavigate('movements');
+    } else {
+      setSelectedItemForHistory(item);
+      setIsHistoryOpen(true);
+      setIsLoadingHistory(true);
+      setHistoryError(null);
+      setHistoryMovements([]);
 
-    try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      };
+      try {
+        const token = getAccessToken();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        };
 
-      const res = await fetch(`${API_BASE}/movements?itemId=${item.id}&limit=100`, { headers });
-      if (!res.ok) {
-        throw new Error('Error al cargar la bitácora de movimientos');
+        const res = await fetch(`${API_BASE}/movements?itemId=${item.id}&limit=100`, { headers });
+        if (!res.ok) {
+          throw new Error('Error al cargar la bitácora de movimientos');
+        }
+
+        const json = await res.json();
+        const data = json.data || json || [];
+        setHistoryMovements(Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []));
+      } catch (err: any) {
+        console.error(err);
+        setHistoryError(err.message || 'Failed to fetch movements history.');
+      } finally {
+        setIsLoadingHistory(false);
       }
-
-      const json = await res.json();
-      const data = json.data || json || [];
-      setHistoryMovements(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      console.error(err);
-      setHistoryError(err.message || 'Failed to fetch movements history.');
-    } finally {
-      setIsLoadingHistory(false);
     }
   };
 
@@ -252,12 +279,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
     return matchesSearch && matchesLocation && matchesOutOfStock;
   });
 
-  // Agrupar por producto+variante
+  // Agrupar por producto/insumo + variante
   type GroupedStockItem = {
     key: string;
-    productId: number;
+    productId: number | null;
+    supplyId: number | null;
     variantId: number | null;
     product: Product | null;
+    supply: Supply | null;
     variant: Variant | null;
     totalQty: number;
     locations: StockItem[];
@@ -268,13 +297,18 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
   const groupMap = new Map<string, GroupedStockItem>();
 
   for (const item of filteredItems) {
-    const key = `${item.product?.id ?? 'unknown'}-${item.variant?.id ?? 'no-variant'}`;
+    const key = item.supply
+      ? `supply-${item.supply.id}`
+      : `product-${item.product?.id ?? 'unknown'}-${item.variant?.id ?? 'no-variant'}`;
+
     if (!groupMap.has(key)) {
       const group: GroupedStockItem = {
         key,
-        productId: item.product?.id ?? 0,
+        productId: item.product?.id ?? null,
+        supplyId: item.supply?.id ?? null,
         variantId: item.variant?.id ?? null,
         product: item.product,
+        supply: item.supply,
         variant: item.variant,
         totalQty: 0,
         locations: [],
@@ -288,6 +322,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
     group.locations.push(item);
     if (item.currentQty <= 0) group.hasAlert = true;
   }
+
 
 
 
@@ -441,64 +476,85 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                   </tr>
                 ) : (
                   groupedItems.map((group) => {
-                    const prodName = group.product?.name || 'Unknown Product';
-                    const prodSku = group.product?.sku || 'N/A';
-                    const varName = group.variant?.name || 'No Variant';
-                    const isExpanded = expandedGroups.has(group.key);
-                    const hasMultipleLocations = group.locations.length > 1;
 
-                    return (
-                      <React.Fragment key={group.key}>
-                        {/* Fila principal (agrupada por producto+variante) */}
-                        <tr
-                          className={`group transition-colors cursor-pointer ${
-                            isExpanded ? 'bg-[#fef9f1]' : 'hover:bg-[#f8f3eb]'
-                          }`}
-                          onClick={() => toggleGroup(group.key)}
-                        >
-                          <td className="px-6 py-4 flex items-center gap-3">
-                            {/* Indicador expand/collapse */}
-                            <span className={`material-symbols-outlined text-[16px] text-[#5f5e5e] transition-transform duration-200 ${
-                              isExpanded ? 'rotate-90' : ''
-                            }`}>
-                              {hasMultipleLocations ? 'chevron_right' : 'remove'}
-                            </span>
-                            <div className={`w-1 h-8 rounded-full ${group.hasAlert ? 'bg-[#ae001a]' : 'bg-emerald-600'}`}></div>
-                            <div>
-                              <p className="font-bold text-[#1d1c17]">{prodName}</p>
-                              <p className="text-secondary text-body-xs font-mono">SKU: {prodSku}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-[#1d1c17] font-sans">
-                            <span className={`px-2 py-0.5 rounded text-body-xs font-semibold ${
-                              group.variant ? 'bg-[#ece8e0] text-[#5f5e5e]' : 'text-zinc-400 italic'
-                            }`}>
-                              {varName}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-secondary text-sm font-semibold">
-                            {group.locations.length === 1
-                              ? (group.locations[0].location?.name || 'Unassigned')
-                              : (
-                                <span className="flex items-center gap-1.5 text-[#ae001a]">
-                                  <span className="material-symbols-outlined text-[14px]">warehouse</span>
-                                  {group.locations.length} locations
+                        const prodName = group.supply?.name || group.product?.name || 'Unknown Item';
+                        const prodSku = group.supply?.sku || group.supply?.code || group.product?.sku || 'N/A';
+                        const varName = group.variant?.name || 'No Variant';
+                        const isExpanded = expandedGroups.has(group.key);
+                        const hasMultipleLocations = group.locations.length > 1;
+
+                        const groupMin = group.locations.find(loc => loc.minimumQty != null)?.minimumQty ?? 0;
+                        const isTotalLowStock = groupMin > 0 ? group.totalQty <= groupMin : group.totalQty <= 0;
+                        const hasLocationAlert = group.locations.some(loc => {
+                          const min = loc.minimumQty ?? 0;
+                          return min > 0 ? loc.currentQty <= min : loc.currentQty <= 0;
+                        });
+
+                        return (
+                          <React.Fragment key={group.key}>
+                            {/* Fila principal (agrupada por producto+variante) */}
+                            <tr
+                              className={`group transition-colors cursor-pointer ${
+                                isExpanded ? 'bg-[#fef9f1]' : 'hover:bg-[#f8f3eb]'
+                              }`}
+                              onClick={() => toggleGroup(group.key)}
+                            >
+                              <td className="px-6 py-4 flex items-center gap-3">
+                                {/* Indicador expand/collapse */}
+                                <span className={`material-symbols-outlined text-[16px] text-[#5f5e5e] transition-transform duration-200 ${
+                                  isExpanded ? 'rotate-90' : ''
+                                }`}>
+                                  {hasMultipleLocations ? 'chevron_right' : 'remove'}
                                 </span>
-                              )
-                            }
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <span className={`px-3 py-1 font-mono font-bold rounded-full text-sm ${
-                              group.totalQty <= 0
-                                ? 'bg-red-100 text-[#ae001a] border border-red-200'
-                                : 'bg-emerald-50 text-emerald-800'
-                            }`}>
-                              {group.totalQty} units
-                            </span>
-                            {hasMultipleLocations && (
-                              <span className="block text-[10px] text-secondary mt-0.5 text-right">total</span>
-                            )}
-                          </td>
+                                <div className={`w-1 h-8 rounded-full ${
+                                  isTotalLowStock ? 'bg-[#ae001a]' : (hasLocationAlert ? 'bg-amber-500' : 'bg-emerald-600')
+                                }`}></div>
+                                <div>
+                                  <p className="font-bold text-[#1d1c17]">{prodName}</p>
+                                  <p className="text-secondary text-body-xs font-mono">SKU: {prodSku}</p>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-[#1d1c17] font-sans">
+                                <span className={`px-2 py-0.5 rounded text-body-xs font-semibold ${
+                                  group.variant ? 'bg-[#ece8e0] text-[#5f5e5e]' : 'text-zinc-400 italic'
+                                }`}>
+                                  {varName}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-secondary text-sm font-semibold">
+                                {group.locations.length === 1
+                                  ? (group.locations[0].location?.name || 'Unassigned')
+                                  : (
+                                    <span className="flex items-center gap-1.5 text-[#ae001a]">
+                                      <span className="material-symbols-outlined text-[14px]">warehouse</span>
+                                      {group.locations.length} locations
+                                    </span>
+                                  )
+                                }
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="inline-flex items-center gap-1.5 justify-end">
+                                  {hasLocationAlert && !isTotalLowStock && (
+                                    <span
+                                      className="material-symbols-outlined text-amber-600 text-base animate-pulse"
+                                      title="Location Alert: 1 or more warehouse locations are below minimum stock threshold!"
+                                    >
+                                      warning
+                                    </span>
+                                  )}
+                                  <span className={`px-3 py-1 font-mono font-bold rounded-full text-sm ${
+                                    isTotalLowStock
+                                      ? 'bg-red-100 text-[#ae001a] border border-red-200'
+                                      : 'bg-emerald-50 text-emerald-800'
+                                  }`}>
+                                    {group.totalQty} units
+                                  </span>
+                                </div>
+                                {hasMultipleLocations && (
+                                  <span className="block text-[10px] text-secondary mt-0.5 text-right">total</span>
+                                )}
+                              </td>
+
                           <td className="px-6 py-4 text-center">
                             {group.locations.length === 1 ? (
                               /* Si solo hay una localización, acciones directas */
@@ -511,14 +567,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                                       ? 'text-secondary hover:text-[#ae001a] hover:bg-[#fef9f1]'
                                       : 'text-zinc-300 cursor-not-allowed opacity-50'
                                   }`}
-                                  title="Adjust Stock Manually"
+                                  title={isAdministrator ? "Adjust Stock Manually" : "Only authorized administrators can modify current stock thresholds manually."}
                                 >
                                   <span className="material-symbols-outlined text-[18px] block">tune</span>
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleViewActivityLogs(group.locations[0]); }}
                                   className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
-                                  title="Ver bitácora de movimientos"
+                                  title="View Activity Logs"
                                 >
                                   <span className="material-symbols-outlined text-[18px] block">history</span>
                                 </button>
@@ -534,7 +590,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
                         {/* Sub-filas por localización (solo si expandido y hay más de 1) */}
                         {isExpanded && hasMultipleLocations && group.locations.map((locItem) => {
-                          const locIsAlert = locItem.currentQty <= 0;
+                          const locMin = locItem.minimumQty ?? 0;
+                          const locIsAlert = locMin > 0 ? locItem.currentQty <= locMin : locItem.currentQty <= 0;
                           return (
                             <tr key={locItem.id} className="bg-zinc-50/70 hover:bg-[#fef5e7] border-l-2 border-[#ae001a]/20">
                               <td className="px-6 py-2.5 pl-16">
@@ -571,14 +628,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                                         ? 'text-secondary hover:text-[#ae001a] hover:bg-[#fef9f1] cursor-pointer'
                                         : 'text-zinc-300 cursor-not-allowed opacity-50'
                                     }`}
-                                    title="Adjust Stock"
+                                    title={isAdministrator ? "Adjust Stock Manually" : "Only authorized administrators can modify current stock thresholds manually."}
                                   >
                                     <span className="material-symbols-outlined text-[16px] block">tune</span>
                                   </button>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleViewActivityLogs(locItem); }}
                                     className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors duration-200 cursor-pointer"
-                                    title="Ver bitácora"
+                                    title="View Activity Logs"
                                   >
                                     <span className="material-symbols-outlined text-[16px] block">history</span>
                                   </button>

@@ -67,6 +67,9 @@ import { UserManagementView } from './views/UserManagementView';
 import { CompanyProfileView } from './views/CompanyProfileView';
 import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
 import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
+import { RawMaterialsView } from './views/products-inventory/raw-materials/RawMaterialsView';
+import { RawMaterialCategoriesView } from './views/products-inventory/category/RawMaterialCategoriesView';
+import { RecipesView } from './views/products-inventory/recipes/RecipesView';
 import { clearAuthSession } from '../../lib/auth-storage';
 
 export const MerchantFrame: React.FC = () => {
@@ -132,6 +135,15 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/company-configurations') {
       setActiveCategory('platformsaas');
       setActiveTab('company-configurations');
+    } else if (path === '/dashboard/raw-materials') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-materials');
+    } else if (path === '/dashboard/raw-material-categories') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-material-categories');
+    } else if (path === '/dashboard/recipes') {
+      setActiveCategory('inventory');
+      setActiveTab('recipes');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
@@ -586,6 +598,18 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'movements') {
       return <MovementsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'raw-materials') {
+      return <RawMaterialsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'raw-material-categories') {
+      return <RawMaterialCategoriesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'recipes') {
+      return <RecipesView />;
     }
 
     if (activeTab !== 'dashboard') {

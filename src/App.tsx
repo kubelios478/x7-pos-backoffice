@@ -70,6 +70,30 @@ export default function App() {
           }
         />
         <Route
+          path="/dashboard/raw-materials"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/raw-material-categories"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/recipes"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard/company-profile"
           element={
             <ProtectedRoute>
