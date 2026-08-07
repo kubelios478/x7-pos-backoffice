@@ -225,7 +225,8 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
     setPage(1);
   };
 
-  const isTrueEmpty = !loading && !error && (paginationMeta?.total ?? transactions.length) === 0;
+  const isTrueEmpty =
+    !loading && !error && !hasActiveFilter && (paginationMeta?.total ?? transactions.length) === 0;
   const isFilteredEmpty = !loading && !error && hasActiveFilter && filteredTransactions.length === 0;
 
   if (error) {

@@ -315,4 +315,21 @@ describe('CashTransactionsView — search and row indicators', () => {
     const row4 = screen.getByTestId('cash-transaction-row-4');
     expect(within(row4).getAllByText('—').length).toBeGreaterThanOrEqual(1);
   });
+
+  it('shows the filtered-empty state (not the true-empty state) when a server-side type filter matches nothing, and recovers via Clear Filters', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    mockFetchOnce([], { ...paginationMeta, total: 0 });
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'refund');
+
+    expect(await screen.findByText(/no cash transactions match your active filters/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('cash-transactions-empty-state')).not.toBeInTheDocument();
+
+    mockFetchOnce([saleTxn]);
+    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+    expect(await screen.findByText('#CT-1')).toBeInTheDocument();
+  });
 });
