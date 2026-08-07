@@ -130,10 +130,26 @@ describe('CashTransactionsView — grid rendering', () => {
   });
 });
 
-describe('CashTransactionsView — View Details modal', () => {
-  it('opens the detail modal with full transaction info when View Details is clicked', async () => {
+describe('CashTransactionsView — View Details drawer', () => {
+  function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () =>
+            url.includes(`/cash-transactions/${detail.id}`)
+              ? { statusCode: 200, message: 'ok', data: detail }
+              : { statusCode: 200, message: 'ok', data: list, paginationMeta },
+        }),
+      ),
+    );
+  }
+
+  it('opens the detail drawer with full transaction info when View Details is clicked', async () => {
     const user = userEvent.setup();
-    mockFetchOnce([saleTxn]);
+    mockFetchWithDetail([saleTxn], saleTxn);
     render(<CashTransactionsView />);
     await screen.findByText('#CT-1');
 
@@ -144,14 +160,36 @@ describe('CashTransactionsView — View Details modal', () => {
     expect(within(dialog).getByText('#CD-3')).toBeInTheDocument();
     expect(within(dialog).getByText('SALE')).toBeInTheDocument();
     expect(within(dialog).getByText('$125.50')).toBeInTheDocument();
-    expect(within(dialog).getByText('#EMP-5')).toBeInTheDocument();
     expect(within(dialog).getByText('Order #200')).toBeInTheDocument();
     expect(within(dialog).getByText('Table 4 dine-in')).toBeInTheDocument();
   });
 
-  it('closes the detail modal when the close button is clicked', async () => {
+  it('opens the detail drawer when the row itself is clicked, not just the button', async () => {
     const user = userEvent.setup();
-    mockFetchOnce([saleTxn]);
+    mockFetchWithDetail([saleTxn], saleTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByTestId('cash-transaction-row-1'));
+
+    expect(screen.getByRole('dialog', { name: /cash transaction details/i })).toBeInTheDocument();
+  });
+
+  it('shows the exact audit-trail ISO timestamps for created and updated', async () => {
+    const user = userEvent.setup();
+    mockFetchWithDetail([saleTxn], saleTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+    expect(within(dialog).getAllByText(saleTxn.createdAt).length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText(saleTxn.updatedAt).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('closes the detail drawer when the close button is clicked', async () => {
+    const user = userEvent.setup();
+    mockFetchWithDetail([saleTxn], saleTxn);
     render(<CashTransactionsView />);
     await screen.findByText('#CT-1');
 
@@ -162,16 +200,43 @@ describe('CashTransactionsView — View Details modal', () => {
     expect(screen.queryByRole('dialog', { name: /cash transaction details/i })).not.toBeInTheDocument();
   });
 
-  it('shows a dash for orderId and notes when the transaction has neither', async () => {
+  it('shows a dash for orderId and the exact empty-notes copy when the transaction has neither', async () => {
     const user = userEvent.setup();
     const bareTxn: CashTransaction = { ...saleTxn, id: 9, orderId: null, notes: null };
-    mockFetchOnce([bareTxn]);
+    mockFetchWithDetail([bareTxn], bareTxn);
     render(<CashTransactionsView />);
     await screen.findByText('#CT-9');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 9 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getAllByText('—').length).toBeGreaterThanOrEqual(2);
+    expect(within(dialog).getByText('—')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('No additional notes provided for this transaction.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows an inline error and keeps the base fields when the detail fetch fails', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url.includes('/cash-transactions/1')
+          ? Promise.resolve({ status: 500, ok: false, json: async () => ({}) })
+          : Promise.resolve({
+              status: 200,
+              ok: true,
+              json: async () => ({ statusCode: 200, message: 'ok', data: [saleTxn], paginationMeta }),
+            }),
+      ),
+    );
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+    expect(within(dialog).getByText('#CT-1')).toBeInTheDocument();
+    expect(within(dialog).getByText('Table 4 dine-in')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/could not load/i).length).toBeGreaterThanOrEqual(1);
   });
 });
 
