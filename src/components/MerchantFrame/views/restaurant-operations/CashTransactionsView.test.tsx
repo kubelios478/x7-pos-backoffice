@@ -177,14 +177,15 @@ describe('CashTransactionsView — View Details drawer', () => {
 
   it('shows the exact audit-trail ISO timestamps for created and updated', async () => {
     const user = userEvent.setup();
-    mockFetchWithDetail([saleTxn], saleTxn);
+    const detailTxn: CashTransaction = { ...saleTxn, updatedAt: '2026-08-07T09:15:00Z' };
+    mockFetchWithDetail([saleTxn], detailTxn);
     render(<CashTransactionsView />);
     await screen.findByText('#CT-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getAllByText(saleTxn.createdAt).length).toBeGreaterThanOrEqual(1);
-    expect(within(dialog).getAllByText(saleTxn.updatedAt).length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getByText(saleTxn.createdAt)).toBeInTheDocument();
+    expect(within(dialog).getByText(detailTxn.updatedAt)).toBeInTheDocument();
   });
 
   it('closes the detail drawer when the close button is clicked', async () => {
