@@ -125,7 +125,6 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
   const [paginationMeta, setPaginationMeta] = useState<CashTransactionPaginationMeta | null>(null);
   const [page, setPage] = useState(1);
-  void setPage;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailTransaction, setDetailTransaction] = useState<CashTransaction | null>(null);
@@ -293,6 +292,33 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
               </tbody>
             </table>
           </div>
+          {paginationMeta && (
+            <div className="p-4 border-t border-[#e8e2d8] flex justify-between items-center">
+              <span className="text-xs text-[#5f5e5e]">
+                Page {paginationMeta.page} of {paginationMeta.totalPages || 1} — {paginationMeta.total} total
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={!paginationMeta.hasPrev}
+                  aria-label="Previous page"
+                  className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:text-primary transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[#5f5e5e]"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!paginationMeta.hasNext}
+                  aria-label="Next page"
+                  className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:text-primary transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[#5f5e5e]"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

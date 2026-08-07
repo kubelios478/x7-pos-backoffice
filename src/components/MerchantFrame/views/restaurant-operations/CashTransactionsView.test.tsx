@@ -174,3 +174,39 @@ describe('CashTransactionsView — View Details modal', () => {
     expect(within(dialog).getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('CashTransactionsView — pagination', () => {
+  const pageOneMeta = { page: 1, limit: 10, total: 15, totalPages: 2, hasNext: true, hasPrev: false };
+  const pageTwoMeta = { page: 2, limit: 10, total: 15, totalPages: 2, hasNext: false, hasPrev: true };
+
+  it('disables Previous on page 1 and enables Next when hasNext is true', async () => {
+    mockFetchOnce([saleTxn], pageOneMeta);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /next page/i })).toBeEnabled();
+  });
+
+  it('fetches page 2 and flips button state when Next is clicked', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn], pageOneMeta);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    mockFetchOnce([{ ...saleTxn, id: 11 }], pageTwoMeta);
+    await user.click(screen.getByRole('button', { name: /next page/i }));
+
+    await screen.findByText('#CT-11');
+    const calledUrl = (fetch as any).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('page=2');
+    expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /previous page/i })).toBeEnabled();
+  });
+
+  it('shows the current page and total count', async () => {
+    mockFetchOnce([saleTxn], pageOneMeta);
+    render(<CashTransactionsView />);
+    expect(await screen.findByText(/page 1 of 2/i)).toBeInTheDocument();
+  });
+});
