@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { saasService } from '../../../services/saasService';
 import type { PlanFeature, SubscriptionPlan, PlatformFeature } from '../../../types/subscription';
-import { StatusToggleButton, ConfirmStatusToggleDialog } from './StatusToggle';
+import { StatusToggleButton, ConfirmStatusToggleDialog } from '../../shared/StatusToggle';
 
 function isValidLimitValue(raw: string): boolean {
   return /^\d+(\.\d{1,2})?$/.test(raw.trim()) && Number(raw) > 0;
@@ -629,7 +629,7 @@ export const PlanFeaturesView: React.FC<PlanFeaturesViewProps> = ({ plan, onNavi
                             )}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex justify-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
                               <button
                                 type="button"
                                 aria-label={`Edit ${pf.feature.name}`}

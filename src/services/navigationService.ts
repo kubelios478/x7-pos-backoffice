@@ -35,6 +35,7 @@ const MERCHANT_COMPANY_FEATURE_IDS = new Set([
   'company-profile',
   'company-configurations',
   'merchant-directory',
+  'user-management',
 ]);
 
 export const navigationService = {

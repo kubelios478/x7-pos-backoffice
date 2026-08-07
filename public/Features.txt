@@ -15,6 +15,7 @@ sub-plans-core|Subscription Plans Core|subscription-system|1|1
 sub-apps-mapping|Subscription Applications Mapping|subscription-system|1|1
 sub-payments-billing|Subscription Payments Billing|subscription-system|1|0
 users-auth-profiles|Users & Authorization Profiles|users|1|1
+user-management|Team User Management|users|1|0
 receipt-items|Receipt items engine|billing-transactions|1|0
 receipt-orders|Receipts Processing|billing-transactions|1|0
 receipt-taxes|Receipts taxes allocation|billing-transactions|1|0

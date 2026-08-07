@@ -1,3 +1,21 @@
+<p align="center">
+  <a href="https://react.dev/" target="blank">
+    <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/react/react-original.svg" width="60" alt="React Logo" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://vitejs.dev/" target="blank">
+    <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/vite/vite-original.svg" width="60" alt="Vite Logo" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://www.typescriptlang.org/" target="blank">
+    <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/typescript/typescript-original.svg" width="60" alt="TypeScript Logo" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://tailwindcss.com/" target="blank">
+    <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/tailwindcss/tailwindcss-original.svg" width="60" alt="Tailwind CSS Logo" />
+  </a>
+</p>
+
 # X7 POS Backoffice
 
 React + Vite + TypeScript + Tailwind CSS frontend for X7 Point of Sale.

@@ -1,6 +1,6 @@
 //src/components/SaaSDashboard/PlatformApplicationsView.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from './StatusToggle';
+import { StatusToggleButton, ConfirmStatusToggleDialog, normalizeStatus } from '../../shared/StatusToggle';
 import { saasService } from '../../../services/saasService';
 import type { Application } from '../../../types/subscription';
 
@@ -405,7 +405,7 @@ export const PlatformApplicationsView: React.FC<PlatformApplicationsViewProps> =
         data-testid="empty-state"
         className="flex flex-col items-center justify-center py-24 gap-6"
       >
-        <span className="material-symbols-outlined text-[#5f5e5e]" style={{ fontSize: '72px' }}>
+        <span className="material-symbols-outlined text-[#5f5e5e] text-[72px]">
           inventory_2
         </span>
         <div className="text-center">

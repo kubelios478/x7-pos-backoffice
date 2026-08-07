@@ -140,7 +140,7 @@ export function LoginPage() {
               </span>
               <input
                 aria-describedby={showEmailError ? 'email-error' : undefined}
-                aria-invalid={Boolean(showEmailError)}
+                aria-invalid={showEmailError ? 'true' : 'false'}
                 autoComplete="email"
                 className={fieldClass(Boolean(showEmailError))}
                 id="email"
@@ -190,7 +190,7 @@ export function LoginPage() {
                 aria-describedby={
                   showPasswordError ? 'password-error' : undefined
                 }
-                aria-invalid={Boolean(showPasswordError)}
+                aria-invalid={showPasswordError ? 'true' : 'false'}
                 autoComplete="current-password"
                 className={`${fieldClass(Boolean(showPasswordError))} pr-12`}
                 id="password"

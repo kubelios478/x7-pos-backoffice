@@ -110,6 +110,14 @@ export default function App() {
           }
         />
         <Route
+          path="/dashboard/users"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/legal/privacy-policy"
           element={
             <ProtectedRoute>

@@ -14,13 +14,23 @@ export async function getApiErrorMessage(
 ): Promise<string> {
   try {
     const data: unknown = await response.json();
-    if (typeof data === 'object' && data !== null && 'message' in data) {
-      const message = (data as { message: unknown }).message;
-      if (Array.isArray(message)) {
-        return message.join(', ');
+    if (typeof data === 'object' && data !== null) {
+      const body = data as { message?: unknown; errors?: unknown };
+
+      if (Array.isArray(body.errors) && body.errors.length > 0) {
+        return body.errors
+          .filter((item): item is string => typeof item === 'string')
+          .join(', ');
       }
-      if (typeof message === 'string') {
-        return message;
+
+      if ('message' in body) {
+        const message = body.message;
+        if (Array.isArray(message)) {
+          return message.join(', ');
+        }
+        if (typeof message === 'string') {
+          return message;
+        }
       }
     }
   } catch {

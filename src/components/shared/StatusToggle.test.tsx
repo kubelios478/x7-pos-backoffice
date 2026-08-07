@@ -1,4 +1,4 @@
-//src/components/SaaSDashboard/StatusToggle.test.tsx
+//src/components/shared/StatusToggle.test.tsx
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
