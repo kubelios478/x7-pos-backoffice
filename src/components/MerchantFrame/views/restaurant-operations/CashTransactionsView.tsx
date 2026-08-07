@@ -6,6 +6,7 @@ import type {
   CashTransactionType,
   CashTransactionPaginationMeta,
 } from '../../../../types/cash-transaction';
+import { CashManagementQuickLinks } from './CashManagementQuickLinks';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const PAGE_SIZE = 10;
@@ -121,7 +122,6 @@ interface CashTransactionsViewProps {
 }
 
 export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNavigate }) => {
-  void onNavigate;
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
   const [paginationMeta, setPaginationMeta] = useState<CashTransactionPaginationMeta | null>(null);
   const [page, setPage] = useState(1);
@@ -492,6 +492,8 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
       {detailTransaction && (
         <CashTransactionDetailModal transaction={detailTransaction} onClose={() => setDetailTransaction(null)} />
       )}
+
+      <CashManagementQuickLinks activeModule="cash-transactions" onNavigate={onNavigate} />
     </div>
   );
 };

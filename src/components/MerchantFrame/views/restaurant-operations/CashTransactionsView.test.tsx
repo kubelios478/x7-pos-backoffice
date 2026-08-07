@@ -333,3 +333,50 @@ describe('CashTransactionsView — search and row indicators', () => {
     expect(await screen.findByText('#CT-1')).toBeInTheDocument();
   });
 });
+
+describe('CashTransactionsView — Quick Launch nav bar', () => {
+  it('renders the Quick Launch panel title and description', async () => {
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    expect(within(nav).getByText('Cash Management Shortcuts')).toBeInTheDocument();
+  });
+
+  it('marks CASH TRANSACTIONS as the active anchor and does not render it as a button', async () => {
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    const activeAnchor = within(nav).getByText('CASH TRANSACTIONS');
+    expect(activeAnchor.closest('[aria-current="page"]')).toBeInTheDocument();
+    expect(activeAnchor.closest('button')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['CASH DRAWERS', 'cash-drawers'],
+    ['CASH SHIFTS', 'cash-shifts'],
+    ['DRAWER HISTORY', 'cash-drawer-history'],
+    ['DRAWER MOVEMENTS', 'cash-movements'],
+  ])('calls onNavigate with the correct id when %s is clicked', async (label, id) => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView onNavigate={onNavigate} />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: new RegExp(label, 'i') }));
+    expect(onNavigate).toHaveBeenCalledWith(id);
+  });
+
+  it('renders the shortcut bar in the true-empty state', async () => {
+    mockFetchOnce([], { ...paginationMeta, total: 0 });
+    render(<CashTransactionsView />);
+    await screen.findByTestId('cash-transactions-empty-state');
+
+    const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
+    expect(within(nav).getByText('DRAWER MOVEMENTS')).toBeInTheDocument();
+  });
+});
