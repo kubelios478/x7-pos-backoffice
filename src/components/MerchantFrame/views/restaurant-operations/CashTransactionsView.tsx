@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../lib/auth-storage';
 import type {
   CashTransaction,
@@ -46,6 +47,75 @@ export function formatDateTime(value: string): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
+interface CashTransactionDetailModalProps {
+  transaction: CashTransaction;
+  onClose: () => void;
+}
+
+const CashTransactionDetailModal: React.FC<CashTransactionDetailModalProps> = ({ transaction, onClose }) => {
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex justify-center items-start overflow-y-auto p-2 md:pt-4 md:pb-12 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-label="Cash Transaction Details"
+        className="bg-white border border-[#e8e2d8] rounded shadow-2xl w-full max-w-md overflow-hidden animate-fade-in text-left max-h-[90vh] flex flex-col"
+      >
+        <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
+          <span className="font-bold text-[11px] uppercase tracking-widest">#CT-{transaction.id} Details</span>
+          <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="p-6 space-y-4 overflow-y-auto flex-1 text-sm">
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Transaction</p>
+            <p className="font-bold text-[#1d1c17]">#CT-{transaction.id}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Cash Drawer</p>
+              <p>#CD-{transaction.cashDrawerId}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Type</p>
+              <p>{formatTypeLabel(transaction.type)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Amount</p>
+              <p className={amountColorClass(transaction.type)}>{formatCurrency(transaction.amount)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Collaborator</p>
+              <p>#EMP-{transaction.collaboratorId}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Linked Order</p>
+            <p>{transaction.orderId != null ? `Order #${transaction.orderId}` : '—'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Notes</p>
+            <p>{transaction.notes || '—'}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Created</p>
+              <p>{formatDateTime(transaction.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Updated</p>
+              <p>{formatDateTime(transaction.updatedAt)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
 interface CashTransactionsViewProps {
   onNavigate?: (view: string) => void;
 }
@@ -58,6 +128,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   void setPage;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailTransaction, setDetailTransaction] = useState<CashTransaction | null>(null);
 
   const fetchCashTransactions = async () => {
     setLoading(true);
@@ -161,6 +232,9 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                   <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                     Created At
                   </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e8e2d8]">
@@ -172,6 +246,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-10" /></td>
                       </tr>
                     ))
                   : transactions.map((txn) => (
@@ -203,12 +278,26 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                           </span>
                         </td>
                         <td className="px-6 py-4">{formatDateTime(txn.createdAt)}</td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setDetailTransaction(txn)}
+                            aria-label={`View cash transaction ${txn.id} details`}
+                            className="p-1 text-[#1d1c17] hover:text-primary transition-colors duration-200"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">visibility</span>
+                          </button>
+                        </td>
                       </tr>
                     ))}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {detailTransaction && (
+        <CashTransactionDetailModal transaction={detailTransaction} onClose={() => setDetailTransaction(null)} />
       )}
     </div>
   );

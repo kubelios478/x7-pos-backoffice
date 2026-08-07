@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CashTransactionsView, formatDateTime, formatTypeLabel } from './CashTransactionsView';
 import type { CashTransaction } from '../../../../types/cash-transaction';
@@ -126,5 +127,50 @@ describe('CashTransactionsView — grid rendering', () => {
     mockFetchOnce([stringAmountTxn]);
     render(<CashTransactionsView />);
     expect(await screen.findByText('$125.50')).toBeInTheDocument();
+  });
+});
+
+describe('CashTransactionsView — View Details modal', () => {
+  it('opens the detail modal with full transaction info when View Details is clicked', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+    expect(within(dialog).getByText('#CT-1')).toBeInTheDocument();
+    expect(within(dialog).getByText('#CD-3')).toBeInTheDocument();
+    expect(within(dialog).getByText('SALE')).toBeInTheDocument();
+    expect(within(dialog).getByText('$125.50')).toBeInTheDocument();
+    expect(within(dialog).getByText('#EMP-5')).toBeInTheDocument();
+    expect(within(dialog).getByText('Order #200')).toBeInTheDocument();
+    expect(within(dialog).getByText('Table 4 dine-in')).toBeInTheDocument();
+  });
+
+  it('closes the detail modal when the close button is clicked', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    expect(screen.getByRole('dialog', { name: /cash transaction details/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByRole('dialog', { name: /cash transaction details/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a dash for orderId and notes when the transaction has neither', async () => {
+    const user = userEvent.setup();
+    const bareTxn: CashTransaction = { ...saleTxn, id: 9, orderId: null, notes: null };
+    mockFetchOnce([bareTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-9');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 9 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+    expect(within(dialog).getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 });
