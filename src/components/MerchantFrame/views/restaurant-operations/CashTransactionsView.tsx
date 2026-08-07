@@ -48,6 +48,11 @@ export function formatDateTime(value: string): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
+export const CASH_TRANSACTION_STATUS_BADGE_CLASSES: Record<string, string> = {
+  active: 'bg-green-500/10 text-green-600',
+  deleted: 'bg-[#5f5e5e]/20 text-[#5f5e5e]',
+};
+
 interface CashTransactionDetailDrawerProps {
   transaction: CashTransaction;
   loading: boolean;
@@ -74,7 +79,16 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
         className="relative bg-white border-l border-[#e8e2d8] shadow-2xl w-full max-w-lg h-full overflow-hidden animate-slide-in text-left flex flex-col"
       >
         <div className="bg-[#222222] p-4 text-white flex justify-between items-center shrink-0">
-          <span className="font-bold text-[11px] uppercase tracking-widest">#CT-{transaction.id} Details</span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-[11px] uppercase tracking-widest">#CT-{transaction.id} Details</span>
+            <span
+              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                CASH_TRANSACTION_STATUS_BADGE_CLASSES[transaction.status] ?? 'bg-white/10 text-white'
+              }`}
+            >
+              {transaction.status}
+            </span>
+          </div>
           <button type="button" onClick={onClose} className="text-white/70 hover:text-white transition-colors">
             <span className="material-symbols-outlined">close</span>
           </button>
@@ -94,6 +108,23 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
               <p>{formatTypeLabel(transaction.type)}</p>
             </div>
           </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Cashier Shift</p>
+            {loading ? (
+              <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32 mt-1" data-testid="shift-section-loading" />
+            ) : error ? (
+              <p className="text-[#ae001a] text-xs mt-1">{error}</p>
+            ) : transaction.cashShift ? (
+              <p>
+                #SHIFT-{transaction.cashShift.id}{' '}
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#ece8e0] text-[#5f5e5e]">
+                  {transaction.cashShift.status}
+                </span>
+              </p>
+            ) : (
+              <p>No shift linked</p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Amount</p>
@@ -101,7 +132,10 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
             </div>
             <div>
               <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Collaborator</p>
-              <p>#EMP-{transaction.collaboratorId}</p>
+              <p>
+                #EMP-{transaction.collaboratorId}
+                {transaction.collaborator ? ` — ${transaction.collaborator.name}` : ''}
+              </p>
             </div>
           </div>
           <div>
@@ -122,16 +156,6 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
               <p className="font-mono text-xs">{transaction.updatedAt}</p>
             </div>
           </div>
-          {error && (
-            <p className="text-[#ae001a] text-xs" role="alert">
-              {error}
-            </p>
-          )}
-          {loading && (
-            <p className="text-[#5f5e5e] text-xs" data-testid="detail-loading-indicator">
-              Loading shift and loyalty details…
-            </p>
-          )}
         </div>
       </div>
     </div>,

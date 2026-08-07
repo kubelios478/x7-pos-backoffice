@@ -461,6 +461,81 @@ describe('CashTransactionsView — search and row indicators', () => {
   });
 });
 
+describe('CashTransactionsView — drawer status, collaborator, and shift', () => {
+  function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          status: 200,
+          ok: true,
+          json: async () =>
+            url.includes(`/cash-transactions/${detail.id}`)
+              ? { statusCode: 200, message: 'ok', data: detail }
+              : { statusCode: 200, message: 'ok', data: list, paginationMeta },
+        }),
+      ),
+    );
+  }
+
+  const shiftTxn: CashTransaction = {
+    ...saleTxn,
+    collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },
+    cashShift: {
+      id: 7,
+      status: 'OPEN',
+      openedAt: '2026-08-07T07:00:00Z',
+      closedAt: null,
+      openingBalance: 100,
+      systemAmount: null,
+      declaredAmount: null,
+      difference: null,
+      openedByCollaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },
+      closedByCollaborator: null,
+    },
+    loyaltyPointTransactions: [],
+  };
+
+  it('shows the status badge and collaborator name once the detail resolves', async () => {
+    const user = userEvent.setup();
+    mockFetchWithDetail([saleTxn], shiftTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+
+    expect(await within(dialog).findByText('active')).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Jane Cashier/)).toBeInTheDocument();
+  });
+
+  it('shows the shift id and status once resolved', async () => {
+    const user = userEvent.setup();
+    mockFetchWithDetail([saleTxn], shiftTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+
+    expect(await within(dialog).findByText('#SHIFT-7')).toBeInTheDocument();
+    expect(within(dialog).getByText('OPEN')).toBeInTheDocument();
+  });
+
+  it('shows "No shift linked" when cashShift resolves to null', async () => {
+    const user = userEvent.setup();
+    const noShiftTxn: CashTransaction = { ...saleTxn, collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' }, cashShift: null, loyaltyPointTransactions: [] };
+    mockFetchWithDetail([saleTxn], noShiftTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
+
+    expect(await within(dialog).findByText('No shift linked')).toBeInTheDocument();
+  });
+});
+
 describe('CashTransactionsView — Quick Launch nav bar', () => {
   it('renders the Quick Launch panel title and description', async () => {
     mockFetchOnce([saleTxn]);
