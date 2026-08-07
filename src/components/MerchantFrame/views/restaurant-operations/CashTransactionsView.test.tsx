@@ -75,12 +75,14 @@ describe('CashTransactionsView — data fetch', () => {
     const originalLocation = window.location;
     // @ts-expect-error test override
     delete window.location;
+    // @ts-expect-error test override
     window.location = { ...originalLocation, href: '' } as Location;
 
     mockFetchOnce([], paginationMeta, 401);
     render(<CashTransactionsView />);
 
     await waitFor(() => expect(window.location.href).toBe('/login'));
+    // @ts-expect-error test override
     window.location = originalLocation;
   });
 

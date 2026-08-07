@@ -51,9 +51,11 @@ interface CashTransactionsViewProps {
 }
 
 export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNavigate }) => {
+  void onNavigate;
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
   const [paginationMeta, setPaginationMeta] = useState<CashTransactionPaginationMeta | null>(null);
   const [page, setPage] = useState(1);
+  void setPage;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +77,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
       }
 
       if (!res.ok) {
-        throw new Error('Error al cargar las transacciones de caja');
+        throw new Error('Failed to load cash transactions');
       }
 
       const json = await res.json();
