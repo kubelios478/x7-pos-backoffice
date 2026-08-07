@@ -74,41 +74,53 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     }
   }
 
-  // Forzar mapeo limpio para vistas especiales
-  if (activeTab === 'products') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Products';
-  } else if (activeTab === 'categories') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Categories';
-  } else if (activeTab === 'stock-movements') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Stock and Stock Movements Management';
-  } else if (activeTab === 'locations') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Inventory Locations';
-  } else if (activeTab === 'purchase-orders') {
-    parentAppName = 'Product/Inventory System';
-    activeFeatureName = 'Purchase Orders';
-  } else if (activeTab === 'merchant-directory') {
-    parentAppName = 'Platform SaaS';
-    activeFeatureName = 'Merchants';
-  } else if (activeTab === 'company-profile') {
-    parentAppName = 'Platform SaaS';
-    activeFeatureName = 'Company Profile';
-  } else if (activeTab === 'company-configurations') {
-    parentAppName = 'Platform SaaS';
-    activeFeatureName = 'Company Configurations';
-  } else if (activeTab === 'saas-dashboard') {
-    parentAppName = 'Platform SaaS';
-    activeFeatureName = 'Overview';
-  } else if (activeTab === 'dashboard') {
-    parentAppName = 'CORE';
-    activeFeatureName = 'Restaurant Overview';
-  } else if (!parentAppName || !activeFeatureName) {
-    parentAppName = activeCategory ? activeCategory.toUpperCase() : 'SYSTEM';
-    activeFeatureName = activeTab ? activeTab.replace(/-/g, ' ').toUpperCase() : 'VIEW';
+  // Lista de pestañas pertenecientes al módulo de Productos e Inventario
+  const productsInventoryTabs = [
+    'products',
+    'categories',
+    'variants',
+    'modifiers',
+    'recipes',
+    'raw-materials',
+    'raw-material-categories',
+    'stock-movements',
+    'movements',
+    'locations',
+    'purchase-orders',
+    'suppliers',
+  ];
+
+  // Si navCategories encontró el padre dinámicamente en el menú lateral (ej. "Food Costing" o "Products/Inventory System"), lo respetamos
+  if (!parentAppName) {
+    if (productsInventoryTabs.includes(activeTab) || activeCategory === 'products-inventory' || activeCategory === 'inventory') {
+      parentAppName = 'Products/Inventory System';
+    } else if (['merchant-directory', 'company-profile', 'company-configurations', 'saas-dashboard'].includes(activeTab)) {
+      parentAppName = 'Platform SaaS';
+    } else if (activeTab === 'dashboard') {
+      parentAppName = 'CORE';
+    } else {
+      parentAppName = activeCategory ? activeCategory.toUpperCase() : 'SYSTEM';
+    }
   }
+
+  // Fallback de nombres de features si no vinieron en navCategories
+  if (!activeFeatureName) {
+    if (activeTab === 'products') activeFeatureName = 'Products';
+    else if (activeTab === 'categories') activeFeatureName = 'Categories';
+    else if (activeTab === 'variants') activeFeatureName = 'Product Variants';
+    else if (activeTab === 'modifiers') activeFeatureName = 'Product Modifiers';
+    else if (activeTab === 'recipes') activeFeatureName = 'Product Recipes (BOM)';
+    else if (activeTab === 'raw-materials') activeFeatureName = 'Raw Materials Workspace';
+    else if (activeTab === 'raw-material-categories') activeFeatureName = 'Raw Material Categories';
+    else if (activeTab === 'stock-movements') activeFeatureName = 'Stock & Inventory Control';
+    else if (activeTab === 'movements') activeFeatureName = 'Inventory Movements Log';
+    else if (activeTab === 'locations') activeFeatureName = 'Inventory Locations';
+    else if (activeTab === 'purchase-orders') activeFeatureName = 'Purchase Orders';
+    else if (activeTab === 'suppliers') activeFeatureName = 'Master Suppliers';
+    else activeFeatureName = activeTab.replace(/-/g, ' ').toUpperCase();
+  }
+
+
 
 
   // Friendly title para el Headline h2
