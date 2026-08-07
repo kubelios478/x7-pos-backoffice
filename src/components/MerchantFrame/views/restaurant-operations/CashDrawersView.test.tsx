@@ -542,6 +542,36 @@ describe('CashDrawersView — Open Cash Drawer', () => {
     ).toBeInTheDocument();
     expect(within(persistedDialog).getByLabelText(/opening balance/i)).toHaveValue(100);
   });
+
+  it('shows the no-active-shift 400 error inline in the dialog and keeps it open', async () => {
+    mockFetchOnce([]);
+    render(<CashDrawersView />);
+    await screen.findByTestId('cash-drawers-empty-state');
+
+    await userEvent.click(screen.getByRole('button', { name: /open cash drawer/i }));
+    const dialog = screen.getByRole('dialog', { name: /open cash drawer/i });
+    await userEvent.type(within(dialog).getByLabelText(/opening balance/i), '100');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        status: 400,
+        ok: false,
+        json: async () => ({
+          message: 'No active shift found. Start a shift before opening a cash drawer.',
+        }),
+      }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: /open drawer/i }));
+
+    await screen.findByText(/no active shift found\. start a shift before opening a cash drawer/i);
+
+    const persistedDialog = screen.getByRole('dialog', { name: /open cash drawer/i });
+    expect(persistedDialog).toBeInTheDocument();
+    expect(
+      within(persistedDialog).getByText(/no active shift found\. start a shift before opening a cash drawer/i),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('CashDrawersView — View Details', () => {
@@ -557,6 +587,37 @@ describe('CashDrawersView — View Details', () => {
     expect(within(dialog).getByText('Restaurant ABC')).toBeInTheDocument();
     expect(within(dialog).getByText(/Alice Brown \(HOST\)/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Jane Smith \(MANAGER\)/)).toBeInTheDocument();
+  });
+
+  it('does not show a Variance row for an OPEN drawer with no closing balance yet', async () => {
+    mockFetchOnce([openDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-1');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash drawer 1 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash drawer details/i });
+
+    expect(within(dialog).queryByText('Variance')).not.toBeInTheDocument();
+  });
+
+  it('shows a neutral $0.00 Variance when the closing balance exactly matches the current balance', async () => {
+    const balancedDrawer: CashDrawer = {
+      ...closedDrawer,
+      id: 4,
+      closingBalance: 150.5,
+      currentBalance: 150.5,
+    };
+    mockFetchOnce([balancedDrawer]);
+    render(<CashDrawersView />);
+    await screen.findByText('#CD-4');
+
+    await userEvent.click(screen.getByRole('button', { name: /view cash drawer 4 details/i }));
+    const dialog = await screen.findByRole('dialog', { name: /cash drawer details/i });
+
+    expect(within(dialog).getByText('Variance')).toBeInTheDocument();
+    const varianceValue = within(dialog).getByText('$0.00');
+    expect(varianceValue).toHaveClass('text-[#1d1c17]');
+    expect(varianceValue).not.toHaveClass('text-orange-700');
   });
 });
 
