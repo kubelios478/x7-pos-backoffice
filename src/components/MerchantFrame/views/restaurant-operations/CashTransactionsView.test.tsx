@@ -175,6 +175,59 @@ describe('CashTransactionsView — View Details modal', () => {
   });
 });
 
+describe('CashTransactionsView — type and drawer filters', () => {
+  it('populates the drawer filter from GET /cash-drawers and requests it as a query param on selection', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    // fetchCashTransactions runs first (mount), then the drawer-options fetch also resolves
+    // via the same mock since mockFetchOnce stubs `fetch` globally for both calls.
+    // Both mount-time fetches resolve with [saleTxn], so the drawer-options fetch (mapping
+    // by `id`) populates the drawer filter with saleTxn.id (1), not its cashDrawerId (3).
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    mockFetchOnce([saleTxn]);
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by cash drawer/i }), '1');
+
+    await waitFor(() => {
+      const calledUrl = (fetch as any).mock.calls[0][0] as string;
+      expect(calledUrl).toContain('cashDrawerId=1');
+    });
+  });
+
+  it('requests the selected type as a query param and resets to page 1', async () => {
+    const user = userEvent.setup();
+    const pageTwoMeta = { page: 2, limit: 10, total: 15, totalPages: 2, hasNext: false, hasPrev: true };
+    mockFetchOnce([saleTxn], pageTwoMeta);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    mockFetchOnce([saleTxn]);
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'refund');
+
+    await waitFor(() => {
+      const calledUrl = (fetch as any).mock.calls[0][0] as string;
+      expect(calledUrl).toContain('type=refund');
+      expect(calledUrl).toContain('page=1');
+    });
+  });
+
+  it('shows a Clear Filters button once a filter is active and clears it on click', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    mockFetchOnce([saleTxn]);
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'refund');
+    expect(await screen.findByRole('button', { name: /clear filters/i })).toBeInTheDocument();
+
+    mockFetchOnce([saleTxn]);
+    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+    expect(screen.queryByRole('button', { name: /clear filters/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('CashTransactionsView — pagination', () => {
   const pageOneMeta = { page: 1, limit: 10, total: 15, totalPages: 2, hasNext: true, hasPrev: false };
   const pageTwoMeta = { page: 2, limit: 10, total: 15, totalPages: 2, hasNext: false, hasPrev: true };

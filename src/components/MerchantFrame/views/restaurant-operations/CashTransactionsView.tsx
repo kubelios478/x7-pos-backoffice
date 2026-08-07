@@ -128,6 +128,9 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailTransaction, setDetailTransaction] = useState<CashTransaction | null>(null);
+  const [typeFilter, setTypeFilter] = useState<'' | CashTransactionType>('');
+  const [drawerFilter, setDrawerFilter] = useState<'' | number>('');
+  const [drawerOptions, setDrawerOptions] = useState<number[]>([]);
 
   const fetchCashTransactions = async () => {
     setLoading(true);
@@ -138,6 +141,9 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      if (typeFilter) params.set('type', typeFilter);
+      if (drawerFilter !== '') params.set('cashDrawerId', String(drawerFilter));
+
       const res = await fetch(`${API_BASE}/cash-transactions?${params.toString()}`, { headers });
 
       if (res.status === 401) {
@@ -164,7 +170,41 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   useEffect(() => {
     fetchCashTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, typeFilter, drawerFilter]);
+
+  useEffect(() => {
+    const fetchDrawerOptions = async () => {
+      try {
+        const token = getAccessToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${API_BASE}/cash-drawers?limit=100`, { headers });
+        const json = await res.json().catch(() => ({ data: [] }));
+        setDrawerOptions((json.data ?? []).map((d: { id: number }) => d.id));
+      } catch (err) {
+        console.error('Error fetching cash drawers for filter:', err);
+      }
+    };
+    fetchDrawerOptions();
+  }, []);
+
+  const hasActiveFilter = Boolean(typeFilter || drawerFilter !== '');
+
+  const clearFilters = () => {
+    setTypeFilter('');
+    setDrawerFilter('');
+    setPage(1);
+  };
+
+  const handleTypeFilterChange = (value: '' | CashTransactionType) => {
+    setTypeFilter(value);
+    setPage(1);
+  };
+
+  const handleDrawerFilterChange = (value: '' | number) => {
+    setDrawerFilter(value);
+    setPage(1);
+  };
 
   const isTrueEmpty = !loading && !error && (paginationMeta?.total ?? transactions.length) === 0;
 
@@ -188,6 +228,49 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-wrap items-center gap-3">
+        <select
+          value={typeFilter}
+          onChange={(e) => handleTypeFilterChange(e.target.value as '' | CashTransactionType)}
+          className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by transaction type"
+        >
+          <option value="">All Types</option>
+          <option value="opening">Opening</option>
+          <option value="sale">Sale</option>
+          <option value="refund">Refund</option>
+          <option value="tip">Tip</option>
+          <option value="withdrawal">Withdrawal</option>
+          <option value="adjustment_up">Adjustment Up</option>
+          <option value="adjustment_down">Adjustment Down</option>
+          <option value="close">Close</option>
+          <option value="pause">Pause</option>
+          <option value="unpause">Unpause</option>
+        </select>
+        <select
+          value={drawerFilter}
+          onChange={(e) => handleDrawerFilterChange(e.target.value === '' ? '' : Number(e.target.value))}
+          className="px-3 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-sm focus:border-[#ae001a] outline-none"
+          aria-label="Filter by cash drawer"
+        >
+          <option value="">All Drawers</option>
+          {drawerOptions.map((id) => (
+            <option key={id} value={id}>
+              #CD-{id}
+            </option>
+          ))}
+        </select>
+        {hasActiveFilter && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="px-4 py-2 border border-[#e8e2d8] text-[#5f5e5e] text-[11px] font-bold uppercase tracking-widest hover:bg-[#f2ede5] transition-colors"
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
       {isTrueEmpty && (
         <div
           data-testid="cash-transactions-empty-state"
