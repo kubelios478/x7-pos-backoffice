@@ -263,3 +263,56 @@ describe('CashTransactionsView — pagination', () => {
     expect(await screen.findByText(/page 1 of 2/i)).toBeInTheDocument();
   });
 });
+
+describe('CashTransactionsView — search and row indicators', () => {
+  it('filters the current page client-side by transaction id, drawer id, collaborator id, or notes', async () => {
+    const user = userEvent.setup();
+    const otherTxn: CashTransaction = { ...saleTxn, id: 2, cashDrawerId: 9, notes: 'Register recount' };
+    mockFetchOnce([saleTxn, otherTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+    expect(screen.getByText('#CT-2')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/search cash transactions/i), 'recount');
+    expect(screen.queryByText('#CT-1')).not.toBeInTheDocument();
+    expect(screen.getByText('#CT-2')).toBeInTheDocument();
+  });
+
+  it('shows a filtered-empty state with a clear-filters link when search matches nothing', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.type(screen.getByLabelText(/search cash transactions/i), 'nonexistent-term');
+    expect(await screen.findByText(/no cash transactions match your active filters/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+    expect(await screen.findByText('#CT-1')).toBeInTheDocument();
+  });
+
+  it('shows a Linked Order indicator with a tooltip when orderId is present, and a dash otherwise', async () => {
+    const noOrderTxn: CashTransaction = { ...saleTxn, id: 3, orderId: null };
+    mockFetchOnce([saleTxn, noOrderTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    const row1 = screen.getByTestId('cash-transaction-row-1');
+    expect(within(row1).getByTitle('Linked to Order #200')).toBeInTheDocument();
+
+    const row3 = screen.getByTestId('cash-transaction-row-3');
+    expect(within(row3).queryByTitle(/linked to order/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a Notes indicator with a tooltip when notes are present, and a dash otherwise', async () => {
+    const noNotesTxn: CashTransaction = { ...saleTxn, id: 4, notes: null };
+    mockFetchOnce([saleTxn, noNotesTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    const row1 = screen.getByTestId('cash-transaction-row-1');
+    expect(within(row1).getByTitle('Table 4 dine-in')).toBeInTheDocument();
+
+    const row4 = screen.getByTestId('cash-transaction-row-4');
+    expect(within(row4).getAllByText('—').length).toBeGreaterThanOrEqual(1);
+  });
+});

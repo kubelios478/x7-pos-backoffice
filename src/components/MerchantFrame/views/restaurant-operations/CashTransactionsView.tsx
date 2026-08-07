@@ -131,6 +131,24 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   const [typeFilter, setTypeFilter] = useState<'' | CashTransactionType>('');
   const [drawerFilter, setDrawerFilter] = useState<'' | number>('');
   const [drawerOptions, setDrawerOptions] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredTransactions = React.useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    if (!term) return transactions;
+    return transactions.filter((txn) => {
+      const transactionId = `#ct-${txn.id}`;
+      const drawerId = `#cd-${txn.cashDrawerId}`;
+      const collaboratorId = `#emp-${txn.collaboratorId}`;
+      const notes = txn.notes?.toLowerCase() ?? '';
+      return (
+        transactionId.includes(term) ||
+        drawerId.includes(term) ||
+        collaboratorId.includes(term) ||
+        notes.includes(term)
+      );
+    });
+  }, [transactions, searchQuery]);
 
   const fetchCashTransactions = async () => {
     setLoading(true);
@@ -188,9 +206,10 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
     fetchDrawerOptions();
   }, []);
 
-  const hasActiveFilter = Boolean(typeFilter || drawerFilter !== '');
+  const hasActiveFilter = Boolean(searchQuery || typeFilter || drawerFilter !== '');
 
   const clearFilters = () => {
+    setSearchQuery('');
     setTypeFilter('');
     setDrawerFilter('');
     setPage(1);
@@ -207,6 +226,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   };
 
   const isTrueEmpty = !loading && !error && (paginationMeta?.total ?? transactions.length) === 0;
+  const isFilteredEmpty = !loading && !error && hasActiveFilter && filteredTransactions.length === 0;
 
   if (error) {
     return (
@@ -229,6 +249,19 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left">
       <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5f5e5e]">
+            search
+          </span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by transaction, drawer, collaborator, or notes..."
+            className="w-full pl-11 pr-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-sm transition-all"
+            aria-label="Search cash transactions"
+          />
+        </div>
         <select
           value={typeFilter}
           onChange={(e) => handleTypeFilterChange(e.target.value as '' | CashTransactionType)}
@@ -260,7 +293,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
             </option>
           ))}
         </select>
-        {hasActiveFilter && (
+        {hasActiveFilter && !isFilteredEmpty && (
           <button
             type="button"
             onClick={clearFilters}
@@ -311,6 +344,12 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                   <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                     Collaborator
                   </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Linked Order
+                  </th>
+                  <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
+                    Notes
+                  </th>
                   <th className="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-[#5f5e5e]">
                     Created At
                   </th>
@@ -327,11 +366,31 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-20" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-10" /></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-10" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32" /></td>
                         <td className="px-6 py-4"><div className="h-4 bg-[#ece8e0] rounded animate-pulse w-10" /></td>
                       </tr>
                     ))
-                  : transactions.map((txn) => (
+                  : isFilteredEmpty
+                    ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-10 text-center">
+                          <div className="flex flex-col items-center gap-3">
+                            <span className="material-symbols-outlined text-[#5f5e5e] text-4xl">search_off</span>
+                            <p className="text-sm text-[#5f5e5e]">No cash transactions match your active filters</p>
+                            <button
+                              type="button"
+                              onClick={clearFilters}
+                              className="text-[#ae001a] text-sm font-semibold hover:underline"
+                            >
+                              Clear filters
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                    : filteredTransactions.map((txn) => (
                       <tr
                         key={txn.id}
                         data-testid={`cash-transaction-row-${txn.id}`}
@@ -358,6 +417,30 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                           <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#5f5e5e]/10 text-[#5f5e5e]">
                             #EMP-{txn.collaboratorId}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {txn.orderId != null ? (
+                            <span
+                              title={`Linked to Order #${txn.orderId}`}
+                              className="material-symbols-outlined text-[18px] text-[#5f5e5e] hover:text-primary transition-colors duration-200 cursor-default"
+                            >
+                              shopping_bag
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {txn.notes ? (
+                            <span
+                              title={txn.notes}
+                              className="material-symbols-outlined text-[18px] text-[#5f5e5e] hover:text-primary transition-colors duration-200 cursor-default"
+                            >
+                              description
+                            </span>
+                          ) : (
+                            '—'
+                          )}
                         </td>
                         <td className="px-6 py-4">{formatDateTime(txn.createdAt)}</td>
                         <td className="px-6 py-4 text-center">
