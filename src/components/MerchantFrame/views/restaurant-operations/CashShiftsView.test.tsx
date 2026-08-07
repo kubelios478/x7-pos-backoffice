@@ -161,12 +161,12 @@ describe('CashShiftsView — grid rendering', () => {
     // in this fixture set, so "$100.00" legitimately appears in more than one
     // row — assert presence, not singularity, matching the OPEN/CLOSED pattern below.
     expect(screen.getAllByText('$100.00').length).toBeGreaterThan(0);
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('John Doe (WAITER)')).toBeInTheDocument();
     expect(screen.getByText('Active Shift')).toBeInTheDocument();
     expect(screen.getAllByText('OPEN').length).toBeGreaterThan(0);
 
     expect(screen.getByText('#CS-2')).toBeInTheDocument();
-    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+    expect(screen.getByText('Jane Smith (MANAGER)')).toBeInTheDocument();
     expect(screen.getAllByText('CLOSED').length).toBeGreaterThan(0);
   });
 

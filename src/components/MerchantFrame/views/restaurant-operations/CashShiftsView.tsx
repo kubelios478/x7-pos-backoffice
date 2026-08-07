@@ -780,12 +780,16 @@ export const CashShiftsView: React.FC<CashShiftsViewProps> = ({ onNavigate }) =>
                           {shift.difference == null ? '--' : formatVariance(shift.difference)}
                         </td>
                         <td className="px-6 py-4">
-                          <p className="font-semibold text-[#1d1c17]">{shift.openedByCollaborator.name}</p>
+                          <p className="font-semibold text-[#1d1c17]">
+                            {shift.openedByCollaborator.name} ({shift.openedByCollaborator.role})
+                          </p>
                           <p className="text-[11px] text-[#5f5e5e] mt-1">{formatDateTime(shift.openedAt)}</p>
                         </td>
                         <td className="px-6 py-4">
                           {shift.closedByCollaborator ? (
-                            <p className="font-semibold text-[#1d1c17]">{shift.closedByCollaborator.name}</p>
+                            <p className="font-semibold text-[#1d1c17]">
+                              {shift.closedByCollaborator.name} ({shift.closedByCollaborator.role})
+                            </p>
                           ) : (
                             <span className="bg-blue-500/10 text-blue-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded">
                               Active Shift
