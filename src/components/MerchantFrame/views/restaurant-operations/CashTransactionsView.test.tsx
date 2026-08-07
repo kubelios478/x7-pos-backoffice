@@ -22,6 +22,22 @@ export function mockFetchOnce(data: CashTransaction[], meta = paginationMeta, st
   );
 }
 
+function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string) =>
+      Promise.resolve({
+        status: 200,
+        ok: true,
+        json: async () =>
+          url.includes(`/cash-transactions/${detail.id}`)
+            ? { statusCode: 200, message: 'ok', data: detail }
+            : { statusCode: 200, message: 'ok', data: list, paginationMeta },
+      }),
+    ),
+  );
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -131,22 +147,6 @@ describe('CashTransactionsView — grid rendering', () => {
 });
 
 describe('CashTransactionsView — View Details drawer', () => {
-  function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          json: async () =>
-            url.includes(`/cash-transactions/${detail.id}`)
-              ? { statusCode: 200, message: 'ok', data: detail }
-              : { statusCode: 200, message: 'ok', data: list, paginationMeta },
-        }),
-      ),
-    );
-  }
-
   it('opens the detail drawer with full transaction info when View Details is clicked', async () => {
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], saleTxn);
@@ -160,6 +160,7 @@ describe('CashTransactionsView — View Details drawer', () => {
     expect(within(dialog).getByText('#CD-3')).toBeInTheDocument();
     expect(within(dialog).getByText('SALE')).toBeInTheDocument();
     expect(within(dialog).getByText('$125.50')).toBeInTheDocument();
+    expect(within(dialog).getByText('#EMP-5')).toBeInTheDocument();
     expect(within(dialog).getByText('Order #200')).toBeInTheDocument();
     expect(within(dialog).getByText('Table 4 dine-in')).toBeInTheDocument();
   });
@@ -198,6 +199,19 @@ describe('CashTransactionsView — View Details drawer', () => {
     expect(screen.getByRole('dialog', { name: /cash transaction details/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByRole('dialog', { name: /cash transaction details/i })).not.toBeInTheDocument();
+  });
+
+  it('closes the detail drawer when the backdrop is clicked', async () => {
+    const user = userEvent.setup();
+    mockFetchWithDetail([saleTxn], saleTxn);
+    render(<CashTransactionsView />);
+    await screen.findByText('#CT-1');
+
+    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
+    expect(screen.getByRole('dialog', { name: /cash transaction details/i })).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('cash-transaction-drawer-backdrop'));
     expect(screen.queryByRole('dialog', { name: /cash transaction details/i })).not.toBeInTheDocument();
   });
 
@@ -462,22 +476,6 @@ describe('CashTransactionsView — search and row indicators', () => {
 });
 
 describe('CashTransactionsView — drawer status, collaborator, and shift', () => {
-  function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          json: async () =>
-            url.includes(`/cash-transactions/${detail.id}`)
-              ? { statusCode: 200, message: 'ok', data: detail }
-              : { statusCode: 200, message: 'ok', data: list, paginationMeta },
-        }),
-      ),
-    );
-  }
-
   const shiftTxn: CashTransaction = {
     ...saleTxn,
     collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },
@@ -487,9 +485,6 @@ describe('CashTransactionsView — drawer status, collaborator, and shift', () =
       openedAt: '2026-08-07T07:00:00Z',
       closedAt: null,
       openingBalance: 100,
-      systemAmount: null,
-      declaredAmount: null,
-      difference: null,
       openedByCollaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },
       closedByCollaborator: null,
     },
@@ -537,22 +532,6 @@ describe('CashTransactionsView — drawer status, collaborator, and shift', () =
 });
 
 describe('CashTransactionsView — Loyalty Points Ledger panel', () => {
-  function mockFetchWithDetail(list: CashTransaction[], detail: CashTransaction) {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url: string) =>
-        Promise.resolve({
-          status: 200,
-          ok: true,
-          json: async () =>
-            url.includes(`/cash-transactions/${detail.id}`)
-              ? { statusCode: 200, message: 'ok', data: detail }
-              : { statusCode: 200, message: 'ok', data: list, paginationMeta },
-        }),
-      ),
-    );
-  }
-
   const baseDetail: CashTransaction = {
     ...saleTxn,
     collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },

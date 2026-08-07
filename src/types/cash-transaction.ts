@@ -1,3 +1,5 @@
+import type { CashShiftStatus } from './cash-shift';
+
 export type CashTransactionType =
   | 'opening'
   | 'sale'
@@ -20,13 +22,10 @@ export interface BasicCollaboratorInfo {
 
 export interface CashTransactionCashShift {
   id: number;
-  status: string;
+  status: CashShiftStatus;
   openedAt: string;
   closedAt: string | null;
   openingBalance: number;
-  systemAmount: number | null;
-  declaredAmount: number | null;
-  difference: number | null;
   openedByCollaborator: BasicCollaboratorInfo;
   closedByCollaborator: BasicCollaboratorInfo | null;
 }

@@ -5,8 +5,10 @@ import type {
   CashTransaction,
   CashTransactionType,
   CashTransactionPaginationMeta,
+  CashTransactionStatus,
 } from '../../../../types/cash-transaction';
 import { CashManagementQuickLinks } from './CashManagementQuickLinks';
+import { STATUS_BADGE_CLASSES as CASH_SHIFT_STATUS_BADGE_CLASSES } from './CashShiftsView';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 const PAGE_SIZE = 10;
@@ -52,7 +54,7 @@ export function formatDateTime(value: string): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
-export const CASH_TRANSACTION_STATUS_BADGE_CLASSES: Record<string, string> = {
+const CASH_TRANSACTION_STATUS_BADGE_CLASSES: Record<CashTransactionStatus, string> = {
   active: 'bg-green-500/10 text-green-600',
   deleted: 'bg-[#5f5e5e]/20 text-[#5f5e5e]',
 };
@@ -117,53 +119,16 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
             {loading ? (
               <div className="h-4 bg-[#ece8e0] rounded animate-pulse w-32 mt-1" data-testid="shift-section-loading" />
             ) : error ? (
-              <p className="text-[#ae001a] text-xs mt-1">{error}</p>
+              <p className="text-[#ae001a] text-xs mt-1" role="alert">Could not load shift details.</p>
             ) : transaction.cashShift ? (
               <p>
                 #SHIFT-{transaction.cashShift.id}{' '}
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-[#ece8e0] text-[#5f5e5e]">
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${CASH_SHIFT_STATUS_BADGE_CLASSES[transaction.cashShift.status]}`}>
                   {transaction.cashShift.status}
                 </span>
               </p>
             ) : (
               <p>No shift linked</p>
-            )}
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Loyalty Points Ledger</p>
-            {loading ? (
-              <div className="h-16 bg-[#ece8e0] rounded animate-pulse mt-2" data-testid="loyalty-section-loading" />
-            ) : error ? (
-              <p className="text-[#ae001a] text-xs mt-1">{error}</p>
-            ) : transaction.loyaltyPointTransactions && transaction.loyaltyPointTransactions.length > 0 ? (
-              <table className="w-full mt-2 border-collapse" data-testid="loyalty-points-table">
-                <thead>
-                  <tr className="border-b border-[#e8e2d8] text-left">
-                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Date</th>
-                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Source</th>
-                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Description</th>
-                    <th className="py-1 text-[11px] uppercase text-[#5f5e5e] text-right">Points</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transaction.loyaltyPointTransactions.map((lpt) => (
-                    <tr key={lpt.id} className="border-b border-[#e8e2d8]/60">
-                      <td className="py-1.5">{formatDateTime(lpt.createdAt)}</td>
-                      <td className="py-1.5">{formatLoyaltySource(lpt.source)}</td>
-                      <td className="py-1.5">{lpt.description || '—'}</td>
-                      <td
-                        className={`py-1.5 text-right font-bold ${
-                          lpt.points > 0 ? 'text-green-600' : lpt.points < 0 ? 'text-[#ae001a]' : 'text-[#5f5e5e]'
-                        }`}
-                      >
-                        {lpt.points > 0 ? `+${lpt.points}` : lpt.points}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-sm text-[#5f5e5e] mt-1">No loyalty point activity linked to this transaction.</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -186,6 +151,45 @@ const CashTransactionDetailDrawer: React.FC<CashTransactionDetailDrawerProps> = 
           <div>
             <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Notes</p>
             <p>{transaction.notes || 'No additional notes provided for this transaction.'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#5f5e5e] uppercase">Loyalty Points Ledger</p>
+            {loading ? (
+              <div className="h-16 bg-[#ece8e0] rounded animate-pulse mt-2" data-testid="loyalty-section-loading" />
+            ) : error ? (
+              <p className="text-[#ae001a] text-xs mt-1">Could not load loyalty point activity.</p>
+            ) : transaction.loyaltyPointTransactions && transaction.loyaltyPointTransactions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full mt-2 border-collapse" data-testid="loyalty-points-table">
+                  <thead>
+                    <tr className="border-b border-[#e8e2d8] text-left">
+                      <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Date</th>
+                      <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Source</th>
+                      <th className="py-1 text-[11px] uppercase text-[#5f5e5e]">Description</th>
+                      <th className="py-1 text-[11px] uppercase text-[#5f5e5e] text-right">Points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transaction.loyaltyPointTransactions.map((lpt) => (
+                      <tr key={lpt.id} className="border-b border-[#e8e2d8]/60">
+                        <td className="py-1.5">{formatDateTime(lpt.createdAt)}</td>
+                        <td className="py-1.5">{formatLoyaltySource(lpt.source)}</td>
+                        <td className="py-1.5">{lpt.description || '—'}</td>
+                        <td
+                          className={`py-1.5 text-right font-bold ${
+                            lpt.points > 0 ? 'text-green-600' : lpt.points < 0 ? 'text-[#ae001a]' : 'text-[#5f5e5e]'
+                          }`}
+                        >
+                          {lpt.points > 0 ? `+${lpt.points}` : lpt.points}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-[#5f5e5e] mt-1">No loyalty point activity linked to this transaction.</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -285,6 +289,11 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/cash-transactions/${txn.id}`, { headers });
+      if (res.status === 401) {
+        clearAuthSession();
+        window.location.href = '/login';
+        return;
+      }
       if (!res.ok) throw new Error('Failed to load cash transaction detail');
       const json = await res.json();
       if (detailRequestIdRef.current === txn.id) {
@@ -553,7 +562,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                           {txn.orderId != null ? (
                             <span
                               title={`Linked to Order #${txn.orderId}`}
-                              className="material-symbols-outlined text-[18px] text-[#5f5e5e] hover:text-primary transition-colors duration-200 cursor-default"
+                              className="material-symbols-outlined text-[18px] text-[#5f5e5e] hover:text-primary transition-colors duration-200"
                             >
                               shopping_bag
                             </span>
@@ -565,7 +574,7 @@ export const CashTransactionsView: React.FC<CashTransactionsViewProps> = ({ onNa
                           {txn.notes ? (
                             <span
                               title={txn.notes}
-                              className="material-symbols-outlined text-[18px] text-[#5f5e5e] hover:text-primary transition-colors duration-200 cursor-default"
+                              className="material-symbols-outlined text-[18px] text-[#5f5e5e] hover:text-primary transition-colors duration-200"
                             >
                               description
                             </span>
