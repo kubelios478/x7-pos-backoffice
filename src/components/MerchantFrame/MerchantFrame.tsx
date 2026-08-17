@@ -654,8 +654,9 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'recipes') {
-      return <RecipesView />;
+      return <RecipesView onNavigate={(view) => setActiveTab(view)} />;
     }
+
 
     if (activeTab !== 'dashboard') {
       // Resolver nombre e icono dinámicamente desde navCategories
@@ -1078,9 +1079,10 @@ export const MerchantFrame: React.FC = () => {
         }}
       />
 
-      <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto bg-[#f1ece4] p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
+      <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto overflow-x-hidden bg-[#f1ece4] p-4 md:p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'left-0' : 'left-64'
       }`}>
+
         <div className="w-full min-h-full flex flex-col justify-between">
           <div className="flex-grow space-y-8 pb-8">
             {renderSPAView()}

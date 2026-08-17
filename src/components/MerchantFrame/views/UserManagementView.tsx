@@ -42,6 +42,7 @@ import {
   StatusToggleButton,
 } from '../../shared/StatusToggle';
 
+
 type ModalMode = 'add' | 'edit';
 
 function userToFormValues(user: MerchantUser): UserFormValues {
