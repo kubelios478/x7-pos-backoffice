@@ -24,7 +24,8 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isActiveFilter, setIsActiveFilter] = useState<boolean>(true);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+
 
   // Drawer
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -210,7 +211,9 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
   };
 
   const filteredCategories = categories.filter((c) => {
-    if (c.isActive !== isActiveFilter) return false;
+    if (statusFilter === 'Active' && !c.isActive) return false;
+    if (statusFilter === 'Inactive' && c.isActive) return false;
+
 
     const matchSearch =
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -250,13 +253,15 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
         {/* Fila 2: Filtro Status + Acciones + Reload (Todos alineados a la izquierda) */}
         <div className="flex flex-wrap items-center justify-start gap-3 pt-1">
           <select
-            value={isActiveFilter ? 'ACTIVE' : 'INACTIVE'}
-            onChange={(e) => setIsActiveFilter(e.target.value === 'ACTIVE')}
-            className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer font-bold"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
           >
-            <option value="ACTIVE">Active Categories</option>
-            <option value="INACTIVE">Inactive Categories</option>
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
           </select>
+
 
           {isInventorySpecialist && (
             <button
@@ -317,16 +322,17 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
                     <td className="px-6 py-4 font-bold text-[#1d1c17] text-sm">{c.name}</td>
                     <td className="px-6 py-4 text-sm text-[#666666]">{c.description || 'No description'}</td>
                     <td className="px-6 py-4 text-center">
-                      {c.isActive ? (
-                        <span className="inline-block bg-green-100 text-green-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="inline-block bg-gray-100 text-gray-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider">
-                          Inactive
-                        </span>
-                      )}
+                      <span
+                        className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                          c.isActive
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-zinc-100 text-zinc-600'
+                        }`}
+                      >
+                        {c.isActive ? 'Active' : 'Inactive'}
+                      </span>
                     </td>
+
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2.5">
                         <button

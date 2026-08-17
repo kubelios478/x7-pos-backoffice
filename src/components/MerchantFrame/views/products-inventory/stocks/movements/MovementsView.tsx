@@ -357,15 +357,16 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
-              <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+              <thead className="bg-[#222222] text-white border-b border-[#222222]">
                 <tr>
-                  <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">Date & Time</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e] text-center">Movement Type</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e] text-right">Quantity</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">Operator / Creator</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">Reference & Reason</th>
+                  <th className="px-6 py-3 text-label-caps font-bold text-white">Date & Time</th>
+                  <th className="px-6 py-3 text-label-caps font-bold text-white text-center">Movement Type</th>
+                  <th className="px-6 py-3 text-label-caps font-bold text-white text-right">Quantity</th>
+                  <th className="px-6 py-3 text-label-caps font-bold text-white">Operator / Creator</th>
+                  <th className="px-6 py-3 text-label-caps font-bold text-white">Reference & Reason</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-[#e8e2d8]">
                 {movements.length === 0 ? (
                   <tr>

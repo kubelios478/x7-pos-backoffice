@@ -961,7 +961,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
               >
-                <option value="All">All Statuses</option>
+                <option value="All">All Status</option>
                 <option value="DRAFT">Draft</option>
                 <option value="SENT">Sent</option>
                 <option value="PARTIALLY_RECEIVED">Partially Received</option>
@@ -1035,31 +1035,32 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left">
-                  <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+                  <thead className="bg-[#222222] text-white border-b border-[#222222]">
                     <tr>
-                      <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">
+                      <th className="px-6 py-3 text-label-caps font-bold text-white">
                         Order Reference Code
                       </th>
-                      <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">
+                      <th className="px-6 py-3 text-label-caps font-bold text-white">
                         Supplier Entity
                       </th>
-                      <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">
+                      <th className="px-6 py-3 text-label-caps font-bold text-white">
                         Creation Timestamp
                       </th>
-                      <th className="px-6 py-3 text-right text-label-caps font-bold text-[#5f5e5e] w-32">
+                      <th className="px-6 py-3 text-right text-label-caps font-bold text-white w-32">
                         Total Gross Amount
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e] w-40">
+                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-40">
                         Fulfillment Progress
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e] w-36">
+                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-36">
                         Fulfillment Status
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e] w-24">
+                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-24">
                         Actions
                       </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-[#e8e2d8]">
                     {filteredOrders.length === 0 ? (
                       <tr>
