@@ -53,6 +53,8 @@ import { PayrollRulesView } from './views/PayrollRulesView';
 import { CashDrawersView } from './views/restaurant-operations/CashDrawersView';
 import { CashShiftsView } from './views/restaurant-operations/CashShiftsView';
 import { CashTransactionsView } from './views/restaurant-operations/CashTransactionsView';
+import { CashMovementsView } from './views/restaurant-operations/CashMovementsView';
+import { CashDrawerHistoryView } from './views/restaurant-operations/CashDrawerHistoryView';
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
 import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
 import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
@@ -95,16 +97,6 @@ const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
     route: '/support/help-center',
     icon: 'help'
   },
-  'cash-drawer-history': {
-    title: 'Drawer History',
-    route: '/cash-management/history',
-    icon: 'history'
-  },
-  'cash-movements': {
-    title: 'Drawer Movements',
-    route: '/cash-management/movements',
-    icon: 'moving'
-  }
 };
 
 export const MerchantFrame: React.FC = () => {
@@ -530,6 +522,14 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'cash-transactions') {
       return <CashTransactionsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-movements') {
+      return <CashMovementsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-drawer-history') {
+      return <CashDrawerHistoryView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'ledger-accounts') {

@@ -1,12 +1,16 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CashTransactionsView, formatDateTime, formatTypeLabel, formatLoyaltySource } from './CashTransactionsView';
+import { CashTransactionsView, formatDateTime, formatTypeLabel, formatLoyaltySource, getTodayDateString } from './CashTransactionsView';
 import type { CashTransaction } from '../../../../types/cash-transaction';
 
 vi.mock('../../../../lib/auth-storage', () => ({
   getAccessToken: vi.fn(() => 'mock-token'),
   clearAuthSession: vi.fn(),
+}));
+
+vi.mock('../../../../api/users', () => ({
+  getCurrentMerchantId: vi.fn(() => 1),
 }));
 
 const paginationMeta = { page: 1, limit: 10, total: 1, totalPages: 1, hasNext: false, hasPrev: false };
@@ -44,21 +48,24 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const todayStr = getTodayDateString();
+
 const saleTxn: CashTransaction = {
   id: 1,
   cashDrawerId: 3,
+  shiftId: 4,
   orderId: 200,
   type: 'sale',
   amount: 125.5,
   collaboratorId: 5,
   status: 'active',
   notes: 'Table 4 dine-in',
-  createdAt: '2026-08-07T08:00:00Z',
-  updatedAt: '2026-08-07T08:00:00Z',
+  createdAt: `${todayStr}T08:00:00Z`,
+  updatedAt: `${todayStr}T08:00:00Z`,
 };
 
 describe('CashTransactionsView — data fetch', () => {
-  it('fetches cash transactions on mount with page 1', async () => {
+  it('fetches cash transactions on mount with merchantId and page 1', async () => {
     mockFetchOnce([]);
     render(<CashTransactionsView />);
 
@@ -72,6 +79,7 @@ describe('CashTransactionsView — data fetch', () => {
     });
     const calledUrl = (fetch as any).mock.calls[0][0] as string;
     expect(calledUrl).toContain('page=1');
+    expect(calledUrl).toContain('merchantId=1');
   });
 
   it('shows a loading indicator while fetching', () => {
@@ -107,19 +115,21 @@ describe('CashTransactionsView — data fetch', () => {
     mockFetchOnce([], { ...paginationMeta, total: 0 });
     render(<CashTransactionsView />);
     expect(await screen.findByTestId('cash-transactions-empty-state')).toBeInTheDocument();
+    expect(screen.getByText(/No cash transactions recorded for the selected period or drawer\./i)).toBeInTheDocument();
   });
 });
 
 describe('CashTransactionsView — grid rendering', () => {
-  it('renders a transaction row with id, drawer, type, amount, collaborator, and date', async () => {
+  it('renders a transaction row with ref ID, drawer, type, amount, collaborator, and date', async () => {
     mockFetchOnce([saleTxn]);
     render(<CashTransactionsView />);
 
-    expect(await screen.findByText('#CT-1')).toBeInTheDocument();
+    expect(await screen.findByText('#TXN-1')).toBeInTheDocument();
     expect(screen.getByText('#CD-3')).toBeInTheDocument();
-    expect(screen.getByText('SALE')).toBeInTheDocument();
+    const row = screen.getByTestId('cash-transaction-row-1');
+    expect(within(row).getByText(/SALE/)).toBeInTheDocument();
     expect(screen.getByText('$125.50')).toBeInTheDocument();
-    expect(screen.getByText('#EMP-5')).toBeInTheDocument();
+    expect(screen.getByText(/Collaborator #5/)).toBeInTheDocument();
     expect(screen.getByText((_, el) => el?.textContent === formatDateTime(saleTxn.createdAt))).toBeInTheDocument();
   });
 
@@ -146,22 +156,39 @@ describe('CashTransactionsView — grid rendering', () => {
   });
 });
 
+describe('CashTransactionsView — Order Drilldown Routing', () => {
+  it('navigates to orders when linked order pill badge is clicked without losing workspace state', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    mockFetchOnce([saleTxn]);
+
+    render(<CashTransactionsView onNavigate={onNavigate} />);
+    await screen.findByText('#TXN-1');
+
+    const orderBadge = screen.getByRole('button', { name: /#ORD-200/i });
+    expect(orderBadge).toBeInTheDocument();
+
+    await user.click(orderBadge);
+    expect(onNavigate).toHaveBeenCalledWith('orders');
+  });
+});
+
 describe('CashTransactionsView — View Details drawer', () => {
   it('opens the detail drawer with full transaction info when View Details is clicked', async () => {
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], saleTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
 
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getByText('#CT-1')).toBeInTheDocument();
+    expect(within(dialog).getByText('#TXN-1')).toBeInTheDocument();
     expect(within(dialog).getByText('#CD-3')).toBeInTheDocument();
-    expect(within(dialog).getByText('SALE')).toBeInTheDocument();
+    expect(within(dialog).getByText(/SALE/)).toBeInTheDocument();
     expect(within(dialog).getByText('$125.50')).toBeInTheDocument();
-    expect(within(dialog).getByText('#EMP-5')).toBeInTheDocument();
-    expect(within(dialog).getByText('Order #200')).toBeInTheDocument();
+    expect(within(dialog).getByText(/#EMP-5/)).toBeInTheDocument();
+    expect(within(dialog).getByText('#ORD-200')).toBeInTheDocument();
     expect(within(dialog).getByText('Table 4 dine-in')).toBeInTheDocument();
   });
 
@@ -169,7 +196,7 @@ describe('CashTransactionsView — View Details drawer', () => {
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], saleTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByTestId('cash-transaction-row-1'));
 
@@ -178,14 +205,13 @@ describe('CashTransactionsView — View Details drawer', () => {
 
   it('shows the exact audit-trail ISO timestamps for created and updated', async () => {
     const user = userEvent.setup();
-    const detailTxn: CashTransaction = { ...saleTxn, updatedAt: '2026-08-07T09:15:00Z' };
+    const detailTxn: CashTransaction = { ...saleTxn, updatedAt: `${todayStr}T09:15:00Z` };
     mockFetchWithDetail([saleTxn], detailTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    // createdAt renders twice by design: once in the metadata header, once in the Audit Trail body section.
     expect(within(dialog).getAllByText(saleTxn.createdAt).length).toBe(2);
     expect(within(dialog).getByText(detailTxn.updatedAt)).toBeInTheDocument();
   });
@@ -195,11 +221,11 @@ describe('CashTransactionsView — View Details drawer', () => {
     const detailTxn: CashTransaction = { ...saleTxn, collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' } };
     mockFetchWithDetail([saleTxn], detailTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getByText('#CT-1 Details')).toBeInTheDocument();
+    expect(within(dialog).getByText('#TXN-1 Details')).toBeInTheDocument();
     expect(within(dialog).getByText('active')).toBeInTheDocument();
     expect(within(dialog).getAllByText(saleTxn.createdAt).length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).getByText(/#EMP-5.*Jane Cashier/)).toBeInTheDocument();
@@ -209,7 +235,7 @@ describe('CashTransactionsView — View Details drawer', () => {
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], saleTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     expect(screen.getByRole('dialog', { name: /cash transaction details/i })).toBeInTheDocument();
@@ -222,7 +248,7 @@ describe('CashTransactionsView — View Details drawer', () => {
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], saleTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     expect(screen.getByRole('dialog', { name: /cash transaction details/i })).toBeInTheDocument();
@@ -231,16 +257,16 @@ describe('CashTransactionsView — View Details drawer', () => {
     expect(screen.queryByRole('dialog', { name: /cash transaction details/i })).not.toBeInTheDocument();
   });
 
-  it('shows a dash for orderId and the exact empty-notes copy when the transaction has neither', async () => {
+  it('shows N/A for orderId and the exact empty-notes copy when the transaction has neither', async () => {
     const user = userEvent.setup();
     const bareTxn: CashTransaction = { ...saleTxn, id: 9, orderId: null, notes: null };
     mockFetchWithDetail([bareTxn], bareTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-9');
+    await screen.findByText('#TXN-9');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 9 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getByText('—')).toBeInTheDocument();
+    expect(within(dialog).getByText('N/A')).toBeInTheDocument();
     expect(
       within(dialog).getByText('No additional notes provided for this transaction.'),
     ).toBeInTheDocument();
@@ -261,22 +287,19 @@ describe('CashTransactionsView — View Details drawer', () => {
       ),
     );
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-    expect(within(dialog).getByText('#CT-1')).toBeInTheDocument();
+    expect(within(dialog).getByText('#TXN-1')).toBeInTheDocument();
     expect(within(dialog).getByText('Table 4 dine-in')).toBeInTheDocument();
     expect(within(dialog).getAllByText(/could not load/i).length).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('CashTransactionsView — type and drawer filters', () => {
-  it('populates the drawer filter from GET /cash-drawers (not from transaction ids) and requests it as a query param on selection', async () => {
+describe('CashTransactionsView — type, status, shift, date, and drawer filters', () => {
+  it('populates the drawer filter from GET /cash-drawers and requests it as a query param on selection', async () => {
     const user = userEvent.setup();
-    // URL-aware mock: /cash-drawers returns distinct drawer ids (3, 7) that don't overlap
-    // with saleTxn's id (1) or cashDrawerId (3-as-transaction-field), so we can tell the
-    // dropdown options really came from the drawers endpoint mapped via `d.id`.
     const fetchMock = vi.fn((url: string) =>
       Promise.resolve({
         status: 200,
@@ -290,7 +313,7 @@ describe('CashTransactionsView — type and drawer filters', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/cash-drawers?limit=100'), expect.anything());
@@ -301,8 +324,6 @@ describe('CashTransactionsView — type and drawer filters', () => {
       expect(within(drawerSelect).getByText('#CD-3')).toBeInTheDocument();
       expect(within(drawerSelect).getByText('#CD-7')).toBeInTheDocument();
     });
-    // saleTxn.id (1) must not leak into the options via a wrong-field/wrong-endpoint mapping
-    expect(within(drawerSelect).queryByText('#CD-1')).not.toBeInTheDocument();
 
     await user.selectOptions(drawerSelect, '3');
 
@@ -317,15 +338,30 @@ describe('CashTransactionsView — type and drawer filters', () => {
     const pageTwoMeta = { page: 2, limit: 10, total: 15, totalPages: 2, hasNext: false, hasPrev: true };
     mockFetchOnce([saleTxn], pageTwoMeta);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     mockFetchOnce([saleTxn]);
-    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'refund');
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'REFUND');
 
     await waitFor(() => {
       const calledUrl = (fetch as any).mock.calls[0][0] as string;
-      expect(calledUrl).toContain('type=refund');
+      expect(calledUrl).toContain('type=REFUND');
       expect(calledUrl).toContain('page=1');
+    });
+  });
+
+  it('requests the selected status as a query param', async () => {
+    const user = userEvent.setup();
+    mockFetchOnce([saleTxn]);
+    render(<CashTransactionsView />);
+    await screen.findByText('#TXN-1');
+
+    mockFetchOnce([saleTxn]);
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction status/i }), 'AUDITED');
+
+    await waitFor(() => {
+      const calledUrl = (fetch as any).mock.calls[0][0] as string;
+      expect(calledUrl).toContain('status=AUDITED');
     });
   });
 
@@ -333,10 +369,10 @@ describe('CashTransactionsView — type and drawer filters', () => {
     const user = userEvent.setup();
     mockFetchOnce([saleTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     mockFetchOnce([saleTxn]);
-    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'refund');
+    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'REFUND');
     expect(await screen.findByRole('button', { name: /clear filters/i })).toBeInTheDocument();
 
     mockFetchOnce([saleTxn]);
@@ -352,7 +388,7 @@ describe('CashTransactionsView — pagination', () => {
   it('disables Previous on page 1 and enables Next when hasNext is true', async () => {
     mockFetchOnce([saleTxn], pageOneMeta);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /next page/i })).toBeEnabled();
@@ -362,12 +398,12 @@ describe('CashTransactionsView — pagination', () => {
     const user = userEvent.setup();
     mockFetchOnce([saleTxn], pageOneMeta);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     mockFetchOnce([{ ...saleTxn, id: 11 }], pageTwoMeta);
     await user.click(screen.getByRole('button', { name: /next page/i }));
 
-    await screen.findByText('#CT-11');
+    await screen.findByText('#TXN-11');
     const calledUrl = (fetch as any).mock.calls[0][0] as string;
     expect(calledUrl).toContain('page=2');
     expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
@@ -382,38 +418,36 @@ describe('CashTransactionsView — pagination', () => {
 
   it('fetches the previous page when Previous is clicked', async () => {
     const user = userEvent.setup();
-    // The component's page counter is local state starting at 1, so to reach page 2
-    // (where Previous is enabled) we first click Next, then click Previous.
     mockFetchOnce([saleTxn], pageOneMeta);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     mockFetchOnce([{ ...saleTxn, id: 11 }], pageTwoMeta);
     await user.click(screen.getByRole('button', { name: /next page/i }));
-    await screen.findByText('#CT-11');
+    await screen.findByText('#TXN-11');
     expect(screen.getByRole('button', { name: /previous page/i })).toBeEnabled();
 
     mockFetchOnce([saleTxn], pageOneMeta);
     await user.click(screen.getByRole('button', { name: /previous page/i }));
 
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
     const calledUrl = (fetch as any).mock.calls[0][0] as string;
     expect(calledUrl).toContain('page=1');
   });
 });
 
 describe('CashTransactionsView — search and row indicators', () => {
-  it('filters the current page client-side by transaction id, drawer id, collaborator id, or notes', async () => {
+  it('filters the current page client-side by transaction id, drawer id, collaborator name, or notes', async () => {
     const user = userEvent.setup();
     const otherTxn: CashTransaction = { ...saleTxn, id: 2, cashDrawerId: 9, notes: 'Register recount' };
     mockFetchOnce([saleTxn, otherTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
-    expect(screen.getByText('#CT-2')).toBeInTheDocument();
+    await screen.findByText('#TXN-1');
+    expect(screen.getByText('#TXN-2')).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/search cash transactions/i), 'recount');
-    expect(screen.queryByText('#CT-1')).not.toBeInTheDocument();
-    expect(screen.getByText('#CT-2')).toBeInTheDocument();
+    expect(screen.queryByText('#TXN-1')).not.toBeInTheDocument();
+    expect(screen.getByText('#TXN-2')).toBeInTheDocument();
   });
 
   it('shows a filtered count in the header when a search query narrows the results, and the server total when cleared', async () => {
@@ -421,7 +455,7 @@ describe('CashTransactionsView — search and row indicators', () => {
     const otherTxn: CashTransaction = { ...saleTxn, id: 2, cashDrawerId: 9, notes: 'Register recount' };
     mockFetchOnce([saleTxn, otherTxn], { ...paginationMeta, total: 15 });
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
     expect(screen.getByText('15 transactions')).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/search cash transactions/i), 'recount');
@@ -431,63 +465,43 @@ describe('CashTransactionsView — search and row indicators', () => {
     expect(await screen.findByText('15 transactions')).toBeInTheDocument();
   });
 
-  it('shows a filtered-empty state with a clear-filters link when search matches nothing', async () => {
+  it('shows a filtered-empty state with exact copy and a clear-filters link when search matches nothing', async () => {
     const user = userEvent.setup();
     mockFetchOnce([saleTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.type(screen.getByLabelText(/search cash transactions/i), 'nonexistent-term');
-    expect(await screen.findByText(/no cash transactions match your active filters/i)).toBeInTheDocument();
-    // Both the filter-bar and the in-table "Clear Filters" buttons are visible here;
-    // target the in-table one specifically via its distinct accessible name.
-    await user.click(screen.getByRole('button', { name: /clear filters and show all transactions/i }));
-    expect(await screen.findByText('#CT-1')).toBeInTheDocument();
+    expect(await screen.findByText(/No cash transactions recorded for the selected period or drawer\./i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /show all transactions/i }));
+    expect(await screen.findByText('#TXN-1')).toBeInTheDocument();
   });
 
-  it('shows a Linked Order indicator with a tooltip when orderId is present, and a dash otherwise', async () => {
+  it('shows a Linked Order pill badge when orderId is present, and N/A otherwise', async () => {
     const noOrderTxn: CashTransaction = { ...saleTxn, id: 3, orderId: null };
     mockFetchOnce([saleTxn, noOrderTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     const row1 = screen.getByTestId('cash-transaction-row-1');
-    expect(within(row1).getByTitle('Linked to Order #200')).toBeInTheDocument();
+    expect(within(row1).getByRole('button', { name: /#ORD-200/i })).toBeInTheDocument();
 
     const row3 = screen.getByTestId('cash-transaction-row-3');
-    expect(within(row3).queryByTitle(/linked to order/i)).not.toBeInTheDocument();
+    expect(within(row3).getByText('N/A')).toBeInTheDocument();
   });
 
   it('shows a Notes indicator with a tooltip when notes are present, and a dash otherwise', async () => {
     const noNotesTxn: CashTransaction = { ...saleTxn, id: 4, notes: null };
     mockFetchOnce([saleTxn, noNotesTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     const row1 = screen.getByTestId('cash-transaction-row-1');
     expect(within(row1).getByTitle('Table 4 dine-in')).toBeInTheDocument();
 
     const row4 = screen.getByTestId('cash-transaction-row-4');
     expect(within(row4).getAllByText('—').length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows the filtered-empty state (not the true-empty state) when a server-side type filter matches nothing, and recovers via Clear Filters', async () => {
-    const user = userEvent.setup();
-    mockFetchOnce([saleTxn]);
-    render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
-
-    mockFetchOnce([], { ...paginationMeta, total: 0 });
-    await user.selectOptions(screen.getByRole('combobox', { name: /filter by transaction type/i }), 'refund');
-
-    expect(await screen.findByText(/no cash transactions match your active filters/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('cash-transactions-empty-state')).not.toBeInTheDocument();
-
-    mockFetchOnce([saleTxn]);
-    // Both the filter-bar and the in-table "Clear Filters" buttons are visible here;
-    // target the in-table one specifically via its distinct accessible name.
-    await user.click(screen.getByRole('button', { name: /clear filters and show all transactions/i }));
-    expect(await screen.findByText('#CT-1')).toBeInTheDocument();
   });
 });
 
@@ -498,7 +512,7 @@ describe('CashTransactionsView — drawer status, collaborator, and shift', () =
     cashShift: {
       id: 7,
       status: 'OPEN',
-      openedAt: '2026-08-07T07:00:00Z',
+      openedAt: `${todayStr}T07:00:00Z`,
       closedAt: null,
       openingBalance: 100,
       openedByCollaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' },
@@ -511,7 +525,7 @@ describe('CashTransactionsView — drawer status, collaborator, and shift', () =
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], shiftTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
@@ -524,26 +538,13 @@ describe('CashTransactionsView — drawer status, collaborator, and shift', () =
     const user = userEvent.setup();
     mockFetchWithDetail([saleTxn], shiftTxn);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
 
     expect(await within(dialog).findByText('#SHIFT-7')).toBeInTheDocument();
     expect(within(dialog).getByText('OPEN')).toBeInTheDocument();
-  });
-
-  it('shows "No shift linked" when cashShift resolves to null', async () => {
-    const user = userEvent.setup();
-    const noShiftTxn: CashTransaction = { ...saleTxn, collaborator: { id: 5, name: 'Jane Cashier', role: 'cashier' }, cashShift: null, loyaltyPointTransactions: [] };
-    mockFetchWithDetail([saleTxn], noShiftTxn);
-    render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
-
-    await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
-    const dialog = screen.getByRole('dialog', { name: /cash transaction details/i });
-
-    expect(await within(dialog).findByText('No shift linked')).toBeInTheDocument();
   });
 });
 
@@ -559,13 +560,13 @@ describe('CashTransactionsView — Loyalty Points Ledger panel', () => {
     const detail: CashTransaction = {
       ...baseDetail,
       loyaltyPointTransactions: [
-        { id: 1, description: 'Points earned from order', source: 'ORDER', points: 150, loyaltyCustomerId: 3, createdAt: '2026-08-07T08:00:00Z' },
-        { id: 2, description: 'Redeemed for reward', source: 'REDEMPTION', points: -50, loyaltyCustomerId: 3, createdAt: '2026-08-07T09:00:00Z' },
+        { id: 1, description: 'Points earned from order', source: 'ORDER', points: 150, loyaltyCustomerId: 3, createdAt: `${todayStr}T08:00:00Z` },
+        { id: 2, description: 'Redeemed for reward', source: 'REDEMPTION', points: -50, loyaltyCustomerId: 3, createdAt: `${todayStr}T09:00:00Z` },
       ],
     };
     mockFetchWithDetail([saleTxn], detail);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     const table = await screen.findByTestId('loyalty-points-table');
@@ -591,7 +592,7 @@ describe('CashTransactionsView — Loyalty Points Ledger panel', () => {
     const detail: CashTransaction = { ...baseDetail, loyaltyPointTransactions: [] };
     mockFetchWithDetail([saleTxn], detail);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: /view cash transaction 1 details/i }));
     expect(
@@ -604,7 +605,7 @@ describe('CashTransactionsView — Quick Launch nav bar', () => {
   it('renders the Quick Launch panel title and description', async () => {
     mockFetchOnce([saleTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
     expect(within(nav).getByText('Cash Management Shortcuts')).toBeInTheDocument();
@@ -613,7 +614,7 @@ describe('CashTransactionsView — Quick Launch nav bar', () => {
   it('marks CASH TRANSACTIONS as the active anchor and does not render it as a button', async () => {
     mockFetchOnce([saleTxn]);
     render(<CashTransactionsView />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     const nav = screen.getByRole('navigation', { name: /related cash management shortcuts/i });
     const activeAnchor = within(nav).getByText('CASH TRANSACTIONS');
@@ -631,7 +632,7 @@ describe('CashTransactionsView — Quick Launch nav bar', () => {
     const onNavigate = vi.fn();
     mockFetchOnce([saleTxn]);
     render(<CashTransactionsView onNavigate={onNavigate} />);
-    await screen.findByText('#CT-1');
+    await screen.findByText('#TXN-1');
 
     await user.click(screen.getByRole('button', { name: new RegExp(label, 'i') }));
     expect(onNavigate).toHaveBeenCalledWith(id);

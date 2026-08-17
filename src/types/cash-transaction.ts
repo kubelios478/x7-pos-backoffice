@@ -1,6 +1,11 @@
 import type { CashShiftStatus } from './cash-shift';
 
 export type CashTransactionType =
+  | 'SALE'
+  | 'REFUND'
+  | 'PAY_IN'
+  | 'PAY_OUT'
+  | 'DRAWER_DROP'
   | 'opening'
   | 'sale'
   | 'refund'
@@ -12,11 +17,19 @@ export type CashTransactionType =
   | 'pause'
   | 'unpause';
 
-export type CashTransactionStatus = 'active' | 'deleted';
+export type CashTransactionStatus =
+  | 'ACTIVE'
+  | 'VOIDED'
+  | 'AUDITED'
+  | 'RECONCILED'
+  | 'active'
+  | 'deleted';
 
 export interface BasicCollaboratorInfo {
   id: number;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
 }
 
@@ -39,10 +52,18 @@ export interface LoyaltyPointTransaction {
   createdAt: string;
 }
 
+export interface CashTransactionOrderRelation {
+  id: number;
+  orderNumber?: string;
+}
+
 export interface CashTransaction {
   id: number;
   cashDrawerId: number;
+  shiftId?: number | null;
   orderId: number | null;
+  orderNumber?: string | null;
+  order?: CashTransactionOrderRelation | null;
   type: CashTransactionType;
   amount: number;
   collaboratorId: number;
