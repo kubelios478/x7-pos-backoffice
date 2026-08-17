@@ -40,7 +40,8 @@ import { UserHrSummaryModal } from '../shared/UserHrSummaryModal';
 import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
-} from '../../SaaSFrame/views/StatusToggle';
+} from '../../shared/StatusToggle';
+
 
 type ModalMode = 'add' | 'edit';
 

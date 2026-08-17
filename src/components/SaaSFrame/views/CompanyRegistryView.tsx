@@ -33,7 +33,8 @@ import { EmergencySupportModal } from '../../MerchantFrame/modals/QuickActionMod
 import {
   ConfirmStatusToggleDialog,
   StatusToggleButton,
-} from './StatusToggle';
+} from '../../shared/StatusToggle';
+
 
 type ModalMode = 'add' | 'edit';
 

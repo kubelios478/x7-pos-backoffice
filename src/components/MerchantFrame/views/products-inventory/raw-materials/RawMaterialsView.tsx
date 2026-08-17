@@ -43,12 +43,16 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtros
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [purchaseUnitFilter, setPurchaseUnitFilter] = useState<string>('All');
   const [consumptionUnitFilter, setConsumptionUnitFilter] = useState<string>('All');
-  const [isActiveFilter, setIsActiveFilter] = useState<boolean>(true);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+
+
+
+
+
 
   // Drawer y Detalles
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -355,7 +359,9 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
 
   // Filtrado de materiales reactivo
   const filteredMaterials = materials.filter((m) => {
-    if (m.isActive !== isActiveFilter) return false;
+    if (statusFilter === 'Active' && !m.isActive) return false;
+    if (statusFilter === 'Inactive' && m.isActive) return false;
+
 
     const matchSearch =
       m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -445,15 +451,17 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
             <option value="UNIT">UNIT</option>
           </select>
 
-          {/* Status Active / Inactive */}
+          {/* Status Filter */}
           <select
-            value={isActiveFilter ? 'ACTIVE' : 'INACTIVE'}
-            onChange={(e) => setIsActiveFilter(e.target.value === 'ACTIVE')}
-            className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer font-bold"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
           >
-            <option value="ACTIVE">All Active Supplies</option>
-            <option value="INACTIVE">Inactive Supplies</option>
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
           </select>
+
 
           {isInventorySpecialist && (
             <button
@@ -500,19 +508,29 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-[#222222] text-white border-b border-[#222222]">
-                  <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wider">Raw Material & SKU</th>
-                  <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wider">Category Tag</th>
-                  <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wider">Unit Conversion Matrix</th>
-                  <th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wider">Costing Metrics</th>
-                  <th className="px-6 py-4 text-center text-xs font-black uppercase tracking-wider">Min Stock Threshold</th>
-                  <th className="px-6 py-4 text-center text-xs font-black uppercase tracking-wider">Status Badge</th>
-                  <th className="px-6 py-4 text-center text-xs font-black uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
+          <>
+            <div className="p-4 bg-[#222222] flex justify-between items-center">
+              <span className="text-label-caps font-bold text-white uppercase tracking-wider">
+                RAW MATERIALS MASTER DIRECTORY
+              </span>
+              <span className="material-symbols-outlined text-white text-sm cursor-pointer select-none">
+                more_vert
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+                  <tr>
+                    <th className="px-6 py-3.5 text-left text-label-caps font-bold text-[#5f5e5e]">Raw Material & SKU</th>
+                    <th className="px-6 py-3.5 text-left text-label-caps font-bold text-[#5f5e5e]">Category Tag</th>
+                    <th className="px-6 py-3.5 text-left text-label-caps font-bold text-[#5f5e5e]">Unit Conversion Matrix</th>
+                    <th className="px-6 py-3.5 text-right text-label-caps font-bold text-[#5f5e5e]">Costing Metrics</th>
+                    <th className="px-6 py-3.5 text-center text-label-caps font-bold text-[#5f5e5e]">Min Stock Threshold</th>
+                    <th className="px-6 py-3.5 text-center text-label-caps font-bold text-[#5f5e5e]">Status Badge</th>
+                    <th className="px-6 py-3.5 text-center text-label-caps font-bold text-[#5f5e5e]">Actions</th>
+                  </tr>
+                </thead>
+
               <tbody className="divide-y divide-[#e8e2d8]">
                 {filteredMaterials.map((m) => {
                   const isLowStock = m.minimumQty != null && (m.currentQty || 0) < m.minimumQty;
@@ -575,16 +593,17 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
                       </td>
 
                       <td className="px-6 py-4 text-center">
-                        {m.isActive ? (
-                          <span className="inline-block bg-green-100 text-green-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="inline-block bg-gray-100 text-gray-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider">
-                            Inactive
-                          </span>
-                        )}
+                        <span
+                          className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase ${
+                            m.isActive
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-zinc-100 text-zinc-600'
+                          }`}
+                        >
+                          {m.isActive ? 'Active' : 'Inactive'}
+                        </span>
                       </td>
+
 
                       <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-center gap-2.5">
@@ -612,22 +631,44 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </>
+      )}
+    </div>
+
 
       <QuickLaunchPanel
-        description="Access common stock configurations and active warehouse locations."
+        title="Quick Launch"
+        description="Transition smoothly between raw materials master data, recipes, stock balances, movements and accounting journal entries."
         actions={[
           {
-            label: 'Stock Inventory',
+            label: 'RAW MATERIALS',
+            icon: 'inventory_2',
+            active: true,
+            onClick: () => onNavigate && onNavigate('raw-materials'),
+          },
+          {
+            label: 'RECIPES & BOM',
+            icon: 'restaurant',
+            onClick: () => onNavigate && onNavigate('recipes'),
+          },
+          {
+            label: 'STOCK LOCATIONS & LEVELS',
+            icon: 'warehouse',
             onClick: () => onNavigate && onNavigate('stock-movements'),
           },
           {
-            label: 'Purchase Orders',
-            onClick: () => onNavigate && onNavigate('purchase-orders'),
+            label: 'STOCK MOVEMENTS',
+            icon: 'swap_vert',
+            onClick: () => onNavigate && onNavigate('movements'),
+          },
+          {
+            label: 'JOURNAL ENTRIES',
+            icon: 'book',
+            onClick: () => onNavigate && onNavigate('journal-entries'),
           },
         ]}
       />
+
 
       {/* Drawer Interactivo */}
       {isDrawerOpen && createPortal(
