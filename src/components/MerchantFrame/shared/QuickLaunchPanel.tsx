@@ -3,6 +3,7 @@ import React from 'react';
 export type QuickLaunchAction = {
   id?: string;
   label: string;
+  icon?: string;
   onClick: () => void;
   variant?: 'default' | 'danger';
   active?: boolean;
@@ -26,18 +27,18 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
       className={`bg-[#2a2a2a] rounded-xl p-8 flex flex-col md:flex-row justify-between items-center gap-6 ${className}`.trim()}
     >
       <div className="text-center md:text-left">
-        <h3 className="!text-white font-bold text-lg">{title}</h3>
-        <p className="text-white/60 text-body-sm mt-1 max-w-md">{description}</p>
+        <h3 className="!text-white font-bold text-lg font-sans tracking-wide">{title}</h3>
+        <p className="text-white/60 text-body-sm mt-1 max-w-md font-sans">{description}</p>
       </div>
 
-      <div className="flex flex-wrap justify-center md:justify-end gap-3">
+      <div className="flex flex-wrap justify-center md:justify-end gap-3 items-center">
         {actions.map((action) => {
           if (action.active) {
             return (
               <span
                 key={action.id ?? action.label}
                 aria-current="page"
-                className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps border-b-4 border-white cursor-default"
+                className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps border-b-4 border-white cursor-default font-sans"
               >
                 {action.label}
               </span>
@@ -53,10 +54,13 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
               onClick={action.onClick}
               className={
                 isDanger
-                  ? 'px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#930015] hover:-translate-y-0.5 transition-all rounded'
-                  : 'quick-launch-btn px-6 py-3 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:-translate-y-0.5 transition-all'
+                  ? 'px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#930015] hover:-translate-y-0.5 transition-all duration-200 rounded flex items-center gap-2 cursor-pointer font-sans'
+                  : 'quick-launch-btn px-5 py-2.5 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:text-[#ae001a] hover:-translate-y-0.5 transition-all duration-200 rounded flex items-center gap-2 cursor-pointer font-sans'
               }
             >
+              {action.icon && (
+                <span className="material-symbols-outlined text-[18px]">{action.icon}</span>
+              )}
               {action.label}
             </button>
           );
@@ -64,4 +68,6 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
       </div>
     </div>
   );
+
 };
+

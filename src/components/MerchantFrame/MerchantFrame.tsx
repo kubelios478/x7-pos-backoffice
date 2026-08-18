@@ -50,6 +50,11 @@ import { TaxRulesView } from './views/TaxRulesView';
 import { TipRulesView } from './views/TipRulesView';
 import { OvertimeRulesView } from './views/OvertimeRulesView';
 import { PayrollRulesView } from './views/PayrollRulesView';
+import { CashDrawersView } from './views/restaurant-operations/CashDrawersView';
+import { CashShiftsView } from './views/restaurant-operations/CashShiftsView';
+import { CashTransactionsView } from './views/restaurant-operations/CashTransactionsView';
+import { CashMovementsView } from './views/restaurant-operations/CashMovementsView';
+import { CashDrawerHistoryView } from './views/restaurant-operations/CashDrawerHistoryView';
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
 import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
 import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
@@ -74,8 +79,36 @@ import { FloorPlansView } from './views/dining-system/FloorPlansView';
 import { FloorZonesView } from './views/dining-system/FloorZonesView';
 import { DiningTablesView } from './views/dining-system/DiningTablesView';
 import { TableAssignmentsView } from './views/dining-system/TableAssignmentsView';
+import { RawMaterialsView } from './views/products-inventory/raw-materials/RawMaterialsView';
+import { RawMaterialCategoriesView } from './views/products-inventory/category/RawMaterialCategoriesView';
+import { RecipesView } from './views/products-inventory/recipes/RecipesView';
 import { clearAuthSession } from '../../lib/auth-storage';
 import { getCurrentMerchantId } from '../../api/users';
+
+// Coming Soon stubs lookup table: maps tab IDs to their display config
+interface ComingSoonStub {
+  title: string;
+  route: string;
+  icon: string;
+}
+
+const COMING_SOON_STUBS: Record<string, ComingSoonStub> = {
+  'privacy-policy': {
+    title: 'Privacy Policy',
+    route: '/legal/privacy-policy',
+    icon: 'gavel'
+  },
+  'terms-of-service': {
+    title: 'Terms of Service',
+    route: '/legal/terms-of-service',
+    icon: 'gavel'
+  },
+  'help-center': {
+    title: 'Help Center',
+    route: '/support/help-center',
+    icon: 'help'
+  },
+};
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
@@ -147,6 +180,15 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/company-configurations') {
       setActiveCategory('platformsaas');
       setActiveTab('company-configurations');
+    } else if (path === '/dashboard/raw-materials') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-materials');
+    } else if (path === '/dashboard/raw-material-categories') {
+      setActiveCategory('inventory');
+      setActiveTab('raw-material-categories');
+    } else if (path === '/dashboard/recipes') {
+      setActiveCategory('inventory');
+      setActiveTab('recipes');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
@@ -379,47 +421,42 @@ export const MerchantFrame: React.FC = () => {
 
   // Renderizado dinámico de vistas SPA (AC 4.2)
   const renderSPAView = () => {
-    if (activeTab === 'privacy-policy' || activeTab === 'terms-of-service' || activeTab === 'help-center') {
-      let title = 'Feature';
-      let route = '/provisional-stub';
-      if (activeTab === 'privacy-policy') {
-        title = 'Privacy Policy';
-        route = '/legal/privacy-policy';
-      } else if (activeTab === 'terms-of-service') {
-        title = 'Terms of Service';
-        route = '/legal/terms-of-service';
-      } else if (activeTab === 'help-center') {
-        title = 'Help Center';
-        route = '/support/help-center';
-      }
-
+    // Check if this tab is a coming soon stub
+    const stub = COMING_SOON_STUBS[activeTab];
+    if (stub) {
       return (
         <div className="bg-white border border-[#e8e2d8] p-12 text-center rounded shadow-sm text-left max-w-4xl mx-auto my-8">
           <div className="flex items-center gap-4 border-b border-[#e8e2d8] pb-6 mb-6">
             <span className="material-symbols-outlined text-primary text-5xl">
-              {activeTab === 'help-center' ? 'help' : 'gavel'}
+              {stub.icon}
             </span>
             <div>
               <h2 className="text-h2 font-black text-[#222222] uppercase leading-none">
-                {title}
+                {stub.title}
               </h2>
               <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mt-1.5">
-                Provisional SPA Route: <span className="text-primary">{route}</span>
+                Provisional SPA Route: <span className="text-primary">{stub.route}</span>
               </p>
             </div>
           </div>
-          
+
           <div className="p-6 bg-[#f1ece4] border border-[#e8e2d8] rounded mb-6 text-left">
             <p className="font-bold text-primary text-sm uppercase tracking-wider mb-2">Feature Coming Soon</p>
             <p className="text-body-md text-[#5f5e5e] leading-relaxed">
-              Esta sección está bajo desarrollo activo por el equipo de ingeniería legal y de operaciones de <strong>X7 Point of Sale</strong>.
-              En una futura actualización, este espacio mostrará la documentación oficial de cumplimiento regulatorio y los términos vigentes.
+              Esta sección está bajo desarrollo activo. En una futura actualización, estará disponible con todas sus funcionalidades en <strong>X7 Point of Sale</strong>.
             </p>
           </div>
-          
+
           <div className="flex justify-end">
             <button
               onClick={() => {
+                if (profile?.role === 'SaaS Owner') {
+                  setActiveCategory('saas');
+                  setActiveTab('saas-dashboard');
+                } else {
+                  setActiveCategory('core');
+                  setActiveTab('dashboard');
+                }
                 navigate('/dashboard');
               }}
               className="px-6 py-2.5 bg-[#222222] text-white font-bold text-xs uppercase tracking-wider hover:bg-primary transition-all rounded shadow-md"
@@ -500,6 +537,26 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'merchant-payroll-rules') {
       return <PayrollRulesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-drawers') {
+      return <CashDrawersView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-shifts') {
+      return <CashShiftsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-transactions') {
+      return <CashTransactionsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-movements') {
+      return <CashMovementsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'cash-drawer-history') {
+      return <CashDrawerHistoryView onNavigate={(view) => setActiveTab(view)} />;
     }
 
     if (activeTab === 'ledger-accounts') {
@@ -694,6 +751,19 @@ export const MerchantFrame: React.FC = () => {
     if (activeTab === 'movements') {
       return <MovementsView onNavigate={(view) => setActiveTab(view)} />;
     }
+
+    if (activeTab === 'raw-materials') {
+      return <RawMaterialsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'raw-material-categories') {
+      return <RawMaterialCategoriesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'recipes') {
+      return <RecipesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
 
     if (activeTab !== 'dashboard') {
       // Resolver nombre e icono dinámicamente desde navCategories
@@ -1116,9 +1186,10 @@ export const MerchantFrame: React.FC = () => {
         }}
       />
 
-      <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto bg-[#f1ece4] p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
+      <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto overflow-x-hidden bg-[#f1ece4] p-4 md:p-8 custom-scrollbar transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'left-0' : 'left-64'
       }`}>
+
         <div className="w-full min-h-full flex flex-col justify-between">
           <div className="flex-grow space-y-8 pb-8">
             {renderSPAView()}

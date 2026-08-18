@@ -9,30 +9,33 @@ interface Supplier {
   name: string;
 }
 
-interface Variant {
+interface Supply {
   id: number;
   name: string;
-  sku: string;
-  price: number | string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  basePrice: number | string;
-  variants?: Variant[];
+  code: string;
+  sku?: string | null;
+  unit: string;
+  consumption_unit?: string | null;
+  cost_per_unit?: number | null;
+  isActive: boolean;
 }
 
 interface PurchaseOrderItem {
   id?: number;
-  productId: number;
-  variantId: number | null;
+  productId?: number | null;
+  variantId?: number | null;
+  rawMaterialId?: number | null;
+  purchaseUnit?: string | null;
+  quantityOrdered?: number | null;
+  unitCost?: number | null;
+  taxAmount?: number | null;
   quantity: number;
   receivedQuantity?: number;
   unitPrice: number;
   totalPrice: number;
-  product?: { name: string };
-  variant?: { name: string };
+  product?: { name: string; sku?: string } | null;
+  variant?: { name: string } | null;
+  rawMaterial?: { id: number; name: string; sku?: string } | null;
   location?: { name: string };
 }
 
@@ -49,22 +52,25 @@ interface PurchaseOrdersViewProps {
   onNavigate?: (view: string) => void;
 }
 
+// Fila de la grilla orientada a materias primas
 interface OrderItemRow {
   localId: string;
-  productId: number | '';
-  variantId: number | null | '';
+  id?: number;
+  rawMaterialId: number | '';
+  purchaseUnit: string;
+  quantityOrdered: number;
+  unitCost: number;
+  taxAmount: number;
   locationId: number | '';
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  availableVariants: Variant[];
+  subtotal: number;
 }
+
 
 export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNavigate }) => {
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,11 +80,13 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [supplierFilter, setSupplierFilter] = useState<string>('All');
 
-  // Campos de creación (Master)
+  // Campos de creación/edición (Master)
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | ''>('');
-  const [orderStatus, setOrderStatus] = useState<string>('PENDING');
+  const [orderStatus, setOrderStatus] = useState<string>('DRAFT');
 
-  // Grilla de ítems (Detail)
+
+  // Grilla de ítems orientada a materias primas (Detail)
   const [itemRows, setItemRows] = useState<OrderItemRow[]>([]);
 
   // Detalle para inspección
@@ -117,7 +125,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      const res = await fetch(`${API_BASE}/purchase-order?limit=100`, { headers });
+      const res = await fetch(`${API_BASE}/v1/purchase-orders?limit=100`, { headers });
 
       if (res.status === 401) {
         clearAuthSession();
@@ -158,7 +166,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       };
 
       // Soft-delete: PATCH para marcar como inactiva
-      const res = await fetch(`${API_BASE}/purchase-order/${selectedOrderForDelete.id}`, {
+      const res = await fetch(`${API_BASE}/v1/purchase-orders/${selectedOrderForDelete.id}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ isActive: false })
@@ -181,7 +189,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
     }
   };
 
-  const fetchSuppliersAndProducts = async () => {
+  const fetchSuppliersAndSupplies = async () => {
     try {
       const token = getAccessToken();
       const headers: Record<string, string> = {
@@ -189,13 +197,16 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      // Cargar proveedores activos (filtrados por merchant via JWT)
+      // Cargar proveedores activos
       const suppliersRes = await fetch(`${API_BASE}/v1/inventory/suppliers?limit=100`, { headers });
 
-      // Cargar productos (filtrados por merchant via JWT)
-      const productsRes = await fetch(`${API_BASE}/products?limit=100`, { headers });
+      // Cargar materias primas activas (insumos)
+      let suppliesRes = await fetch(`${API_BASE}/v1/inventory/raw-materials?status=active&limit=500`, { headers });
+      if (!suppliesRes.ok) {
+        suppliesRes = await fetch(`${API_BASE}/supplies?status=active&limit=500`, { headers });
+      }
 
-      // Cargar ubicaciones (filtradas por merchant via JWT)
+      // Cargar ubicaciones
       let locationsRes = await fetch(`${API_BASE}/v1/inventory/locations`, { headers });
       if (!locationsRes.ok || locationsRes.status === 404 || locationsRes.status === 400) {
         const fallbackLocations = await fetch(`${API_BASE}/locations`, { headers });
@@ -204,16 +215,17 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
       if (suppliersRes.ok) {
         const json = await suppliersRes.json();
-        const data = json.data || json || [];
+        const data = json.items || json.data || json || [];
         const activeSuppliers = (Array.isArray(data) ? data : []).filter((s: any) => s.isActive !== false);
         setSuppliers(activeSuppliers);
       }
-      if (productsRes.ok) {
-        const json = await productsRes.json();
-        const data = json.data || json || [];
-        const activeProducts = (Array.isArray(data) ? data : []).filter((p: any) => p.isActive !== false);
-        setProducts(activeProducts);
+      if (suppliesRes.ok) {
+        const json = await suppliesRes.json();
+        const data = json.items || json.data || json || [];
+        const activeSupplies = (Array.isArray(data) ? data : []).filter((s: any) => s.isActive !== false);
+        setSupplies(activeSupplies);
       }
+
       if (locationsRes.ok) {
         const json = await locationsRes.json();
         const data = json.data || json || [];
@@ -227,124 +239,144 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
 
   useEffect(() => {
     fetchPurchaseOrders();
-    fetchSuppliersAndProducts();
+    fetchSuppliersAndSupplies();
   }, []);
 
-  // Agregar fila a la grilla
+  // ── Handlers de grilla de insumos ──────────────────────────────────────────
+
   const handleAddRow = () => {
     const defaultLocationId = locations.length > 0 ? locations[0].id : '';
     const newRow: OrderItemRow = {
       localId: Math.random().toString(36).substring(2, 9),
-      productId: '',
-      variantId: '',
+      rawMaterialId: '',
+      purchaseUnit: 'KG',
+      quantityOrdered: 1,
+      unitCost: 0,
+      taxAmount: 0,
       locationId: defaultLocationId,
-      quantity: 1,
-      unitPrice: 0,
-      totalPrice: 0,
-      availableVariants: []
+      subtotal: 0
     };
     setItemRows([...itemRows, newRow]);
   };
 
-  // Eliminar fila de la grilla
   const handleRemoveRow = (localId: string) => {
     setItemRows(itemRows.filter(row => row.localId !== localId));
   };
 
-  // Cambiar producto en una fila
-  const handleProductChange = (localId: string, prodId: number) => {
-    const selectedProd = products.find(p => p.id === prodId);
-    const basePrice = selectedProd ? Number(selectedProd.basePrice) || 0 : 0;
-    const variants = selectedProd?.variants || [];
+  const recalcSubtotal = (qty: number, cost: number, tax: number) =>
+    Math.max(0, qty * cost + tax);
 
+  const handleSupplyChange = (localId: string, supplyId: number) => {
+    const supply = supplies.find(s => s.id === supplyId);
+    const cost = supply ? Number(supply.cost_per_unit || 0) : 0;
+    const unit = supply?.unit || 'KG';
     setItemRows(itemRows.map(row => {
-      if (row.localId === localId) {
-        const hasVariants = variants.length > 0;
-        return {
-          ...row,
-          productId: prodId,
-          variantId: hasVariants ? '' : null,
-          unitPrice: basePrice,
-          totalPrice: row.quantity * basePrice,
-          availableVariants: variants
-        };
-      }
-      return row;
+      if (row.localId !== localId) return row;
+      return {
+        ...row,
+        rawMaterialId: supplyId,
+        purchaseUnit: unit,
+        unitCost: cost,
+        subtotal: recalcSubtotal(row.quantityOrdered, cost, row.taxAmount)
+      };
     }));
   };
 
-  // Cambiar variante en una fila
-  const handleVariantChange = (localId: string, variantId: number) => {
+  const handlePurchaseUnitChange = (localId: string, unit: string) => {
+    setItemRows(itemRows.map(row =>
+      row.localId === localId ? { ...row, purchaseUnit: unit } : row
+    ));
+  };
+
+  const handleQuantityOrderedChange = (localId: string, qty: number) => {
     setItemRows(itemRows.map(row => {
-      if (row.localId === localId) {
-        const selectedVariant = row.availableVariants.find(v => v.id === variantId);
-        const price = selectedVariant ? Number(selectedVariant.price) || 0 : row.unitPrice;
-        return {
-          ...row,
-          variantId: variantId,
-          unitPrice: price,
-          totalPrice: row.quantity * price
-        };
-      }
-      return row;
+      if (row.localId !== localId) return row;
+      const q = Math.max(0.0001, qty);
+      return { ...row, quantityOrdered: q, subtotal: recalcSubtotal(q, row.unitCost, row.taxAmount) };
     }));
   };
 
-  // Cambiar cantidad en una fila
-  const handleQuantityChange = (localId: string, qty: number) => {
+  const handleUnitCostChange = (localId: string, cost: number) => {
     setItemRows(itemRows.map(row => {
-      if (row.localId === localId) {
-        const finalQty = Math.max(1, qty);
-        return {
-          ...row,
-          quantity: finalQty,
-          totalPrice: finalQty * row.unitPrice
-        };
-      }
-      return row;
+      if (row.localId !== localId) return row;
+      const c = Math.max(0, cost);
+      return { ...row, unitCost: c, subtotal: recalcSubtotal(row.quantityOrdered, c, row.taxAmount) };
     }));
   };
 
-  // Cambiar localización en una fila
+  const handleTaxChange = (localId: string, tax: number) => {
+    setItemRows(itemRows.map(row => {
+      if (row.localId !== localId) return row;
+      const t = Math.max(0, tax);
+      return { ...row, taxAmount: t, subtotal: recalcSubtotal(row.quantityOrdered, row.unitCost, t) };
+    }));
+  };
+
   const handleLocationChange = (localId: string, locationId: number) => {
-    setItemRows(itemRows.map(row => {
-      if (row.localId === localId) {
-        return {
-          ...row,
-          locationId: locationId
-        };
-      }
-      return row;
-    }));
-  };
-
-  // Cambiar precio unitario en una fila (override)
-  const handleUnitPriceChange = (localId: string, price: number) => {
-    setItemRows(itemRows.map(row => {
-      if (row.localId === localId) {
-        const finalPrice = Math.max(0, price);
-        return {
-          ...row,
-          unitPrice: finalPrice,
-          totalPrice: row.quantity * finalPrice
-        };
-      }
-      return row;
-    }));
+    setItemRows(itemRows.map(row =>
+      row.localId === localId ? { ...row, locationId } : row
+    ));
   };
 
   // Calcular Gran Total
-  const grandTotal = itemRows.reduce((acc, row) => acc + row.totalPrice, 0);
+  const grandTotal = itemRows.reduce((acc, row) => acc + row.subtotal, 0);
 
   // Inicializar Formulario de Creación
   const handleOpenCreateMode = () => {
+    setEditingOrderId(null);
     setSelectedSupplierId('');
-    setOrderStatus('PENDING');
+    setOrderStatus('DRAFT');
     setItemRows([]);
     setMode('create');
   };
 
-  // Validaciones y Guardado
+  // Inicializar Formulario de Edición (PO en estado DRAFT o SENT)
+  const handleOpenEditMode = async (po: PurchaseOrder) => {
+    let fullOrder = po;
+    try {
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const detailRes = await fetch(`${API_BASE}/v1/purchase-orders/${po.id}`, { headers });
+      if (detailRes.ok) {
+        const body = await detailRes.json();
+        fullOrder = body.data || body;
+      }
+    } catch (e) {
+      console.error('Failed to load full PO details for edit', e);
+    }
+
+    setEditingOrderId(fullOrder.id);
+    setSelectedSupplierId(fullOrder.supplier?.id || '');
+    setOrderStatus(fullOrder.status || 'DRAFT');
+
+    const defaultLocationId = locations.length > 0 ? locations[0].id : '';
+
+    const mappedRows: OrderItemRow[] = (fullOrder.purchaseOrderItems || []).map((item, idx) => {
+      const qty = Number(item.quantityOrdered ?? item.quantity) || 1;
+      const cost = Number(item.unitCost ?? item.unitPrice) || 0;
+      const tax = Number(item.taxAmount) || 0;
+      return {
+        localId: `edit-${item.id || idx}-${Math.random().toString(36).substring(2, 7)}`,
+        id: item.id,
+        rawMaterialId: item.rawMaterialId || (item.rawMaterial?.id ? Number(item.rawMaterial.id) : ''),
+        purchaseUnit: item.purchaseUnit || 'KG',
+        quantityOrdered: qty,
+        unitCost: cost,
+        taxAmount: tax,
+        locationId: item.location?.name ? (locations.find(l => l.name === item.location?.name)?.id || defaultLocationId) : defaultLocationId,
+        subtotal: recalcSubtotal(qty, cost, tax)
+      };
+    });
+
+    setItemRows(mappedRows);
+    setIsDetailDrawerOpen(false);
+    setMode('create');
+  };
+
+  // Validaciones y Guardado (Creación o Edición PUT)
   const handleSavePurchaseOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -358,15 +390,14 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       return;
     }
 
-    const hasInvalidRow = itemRows.some(row => 
-      row.productId === '' || 
-      row.quantity < 1 || 
-      row.locationId === '' ||
-      (row.availableVariants.length > 0 && (row.variantId === '' || row.variantId === null))
+    const hasInvalidRow = itemRows.some(row =>
+      row.rawMaterialId === '' ||
+      row.quantityOrdered < 0.0001 ||
+      row.locationId === ''
     );
 
     if (hasInvalidRow) {
-      alert('Please check all rows. Product, variant (if applicable), quantity, and destination location are mandatory fields.');
+      alert('Please check all rows. Raw Material, Quantity Ordered, and Destination Location are mandatory fields.');
       return;
     }
 
@@ -377,21 +408,30 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
+      const isEdit = editingOrderId !== null;
+      const url = isEdit
+        ? `${API_BASE}/v1/purchase-orders/${editingOrderId}`
+        : `${API_BASE}/v1/purchase-orders`;
+      const method = isEdit ? 'PUT' : 'POST';
+
       const payload = {
         supplierId: Number(selectedSupplierId),
         status: orderStatus,
         totalAmount: grandTotal,
         items: itemRows.map(row => ({
-          productId: Number(row.productId),
-          variantId: row.variantId ? Number(row.variantId) : null,
-          locationId: Number(row.locationId),
-          quantity: Number(row.quantity),
-          unitPrice: Number(row.unitPrice)
+          ...(row.id ? { id: row.id } : {}),
+          rawMaterialId: Number(row.rawMaterialId),
+          purchaseUnit: row.purchaseUnit,
+          quantityOrdered: Number(row.quantityOrdered),
+          unitCost: Number(row.unitCost),
+          taxAmount: Number(row.taxAmount),
+          locationId: Number(row.locationId)
         }))
       };
 
-      const res = await fetch(`${API_BASE}/purchase-order`, {
-        method: 'POST',
+
+      const res = await fetch(url, {
+        method,
         headers,
         body: JSON.stringify(payload)
       });
@@ -401,6 +441,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         throw new Error(errorData.message || 'Error saving the purchase order');
       }
 
+      setEditingOrderId(null);
       setMode('list');
       fetchPurchaseOrders(true);
     } catch (err: any) {
@@ -408,6 +449,8 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       alert(err.message || 'Error saving the purchase order');
     }
   };
+
+
 
   // Abrir Drawer de Inspección
   const handleInspectOrder = async (po: PurchaseOrder) => {
@@ -418,7 +461,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      const detailRes = await fetch(`${API_BASE}/purchase-order/${po.id}`, { headers });
+      const detailRes = await fetch(`${API_BASE}/v1/purchase-orders/${po.id}`, { headers });
 
       if (detailRes.ok) {
         const body = await detailRes.json();
@@ -448,7 +491,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
     setIsDetailDrawerOpen(true);
   };
 
-  // Guardar cambios del inspector (Fulfillment State y Recepciones Parciales)
+  // Guardar cambios del inspector (Fulfillment State y Recepciones Parciales vía POST /receive)
   const handleSaveInspectorChanges = async () => {
     if (!selectedOrderForInspect) return;
     try {
@@ -458,62 +501,121 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      // Mapear items con sus ID y cantidad recibida
-      const itemsPayload = Object.entries(receivedQuantities).map(([id, qty]) => ({
-        id: Number(id),
-        receivedQuantity: qty
-      }));
+      // 1. Verificar si hay cantidades recibidas adicionales para enviar vía /receive
+      const receiveItemsPayload: { id: number; receivedQuantity: number }[] = [];
+      if (selectedOrderForInspect.purchaseOrderItems) {
+        selectedOrderForInspect.purchaseOrderItems.forEach(item => {
+          if (item.id) {
+            const oldRec = Number(item.receivedQuantity) || 0;
+            const newRec = Number(receivedQuantities[item.id] ?? oldRec);
+            const delta = newRec - oldRec;
+            if (delta > 0) {
+              receiveItemsPayload.push({
+                id: item.id,
+                receivedQuantity: delta
+              });
+            }
+          }
+        });
+      }
 
-      const payload = {
-        status: inspectorStatus,
-        items: itemsPayload
-      };
+      // Si hay ítems a recibir, llamamos al endpoint especializado POST /v1/purchase-orders/:id/receive
+      if (receiveItemsPayload.length > 0) {
+        const receiveRes = await fetch(`${API_BASE}/v1/purchase-orders/${selectedOrderForInspect.id}/receive`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ items: receiveItemsPayload })
+        });
 
-      let usedUrl = `${API_BASE}/v1/inventory/purchase-orders/${selectedOrderForInspect.id}`;
-      let updateRes = await fetch(usedUrl, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(payload)
-      });
+        if (!receiveRes.ok) {
+          const errorData = await receiveRes.json().catch(() => ({}));
+          const errMsg = Array.isArray(errorData.message) ? errorData.message.join(', ') : (errorData.message || 'Error receiving items');
+          throw new Error(errMsg);
+        }
+      }
 
-      if (!updateRes.ok || updateRes.status === 404 || updateRes.status === 400) {
-        usedUrl = `${API_BASE}/purchase-order/${selectedOrderForInspect.id}`;
-        const fallbackRes = await fetch(usedUrl, {
+      // 2. Si el estado cambió explícitamente en el selector a otro valor no derivado, actualizar vía PATCH /status
+      if (inspectorStatus !== selectedOrderForInspect.status && receiveItemsPayload.length === 0) {
+        const statusRes = await fetch(`${API_BASE}/v1/purchase-orders/${selectedOrderForInspect.id}/status`, {
           method: 'PATCH',
           headers,
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ status: inspectorStatus })
         });
-        updateRes = fallbackRes;
+
+        if (!statusRes.ok) {
+          const errorData = await statusRes.json().catch(() => ({}));
+          const errMsg = Array.isArray(errorData.message) ? errorData.message.join(', ') : (errorData.message || 'Error updating status');
+          throw new Error(errMsg);
+        }
       }
 
-      if (updateRes.ok) {
-        alert(`Order fulfillment updated successfully!\nURL: ${usedUrl}\nStatus: ${updateRes.status}`);
-        setIsDetailDrawerOpen(false);
-        fetchPurchaseOrders(true);
-      } else {
-        const errorData = await updateRes.json().catch(() => ({}));
-        const errMsg = Array.isArray(errorData.message) ? errorData.message.join(', ') : (errorData.message || 'Unknown error');
-        throw new Error(`Server returned ${updateRes.status}: ${errMsg}\nUsed URL: ${usedUrl}\nPayload: ${JSON.stringify(payload)}`);
-      }
+      setIsDetailDrawerOpen(false);
+      fetchPurchaseOrders(true);
     } catch (err: any) {
       console.error(err);
       alert(err.message || 'Error updating order fulfillment');
     }
   };
 
+
+  // Helper para obtener las transiciones válidas del ciclo de vida
+  const getAllowedNextStatuses = (currentStatus: string) => {
+    const norm = (currentStatus || 'DRAFT').toUpperCase();
+    switch (norm) {
+      case 'DRAFT':
+        return [
+          { value: 'DRAFT', label: 'DRAFT' },
+          { value: 'SENT', label: 'SENT' },
+          { value: 'CANCELLED', label: 'CANCELLED' }
+        ];
+      case 'SENT':
+        return [
+          { value: 'SENT', label: 'SENT' },
+          { value: 'DRAFT', label: 'DRAFT' },
+          { value: 'PARTIALLY_RECEIVED', label: 'PARTIALLY RECEIVED' },
+          { value: 'RECEIVED', label: 'RECEIVED' },
+          { value: 'CANCELLED', label: 'CANCELLED' }
+        ];
+      case 'PARTIALLY_RECEIVED':
+        return [
+          { value: 'PARTIALLY_RECEIVED', label: 'PARTIALLY RECEIVED' },
+          { value: 'RECEIVED', label: 'RECEIVED' },
+          { value: 'CANCELLED', label: 'CANCELLED' }
+        ];
+      case 'RECEIVED':
+        return [
+          { value: 'RECEIVED', label: 'RECEIVED (COMPLETED)' }
+        ];
+      case 'CANCELLED':
+        return [
+          { value: 'CANCELLED', label: 'CANCELLED' }
+        ];
+      default:
+        return [
+          { value: 'DRAFT', label: 'DRAFT' },
+          { value: 'SENT', label: 'SENT' },
+          { value: 'PARTIALLY_RECEIVED', label: 'PARTIALLY RECEIVED' },
+          { value: 'RECEIVED', label: 'RECEIVED' },
+          { value: 'CANCELLED', label: 'CANCELLED' }
+        ];
+    }
+  };
+
   // Calcular ítems totales pendientes para el inspector y total del dinero recibido
+
   let totalPendingItemsCount = 0;
   let totalReceivedAmount = 0;
   if (selectedOrderForInspect?.purchaseOrderItems) {
     selectedOrderForInspect.purchaseOrderItems.forEach(item => {
-      const requested = Number(item.quantity) || 0;
-      const price = Number(item.unitPrice) || 0;
+      // Para materias primas usar quantityOrdered; fallback a quantity para compatibilidad
+      const requested = Number(item.quantityOrdered ?? item.quantity) || 0;
+      const price = Number(item.unitCost ?? item.unitPrice) || 0;
       let received = 0;
-      if (inspectorStatus === 'COMPLETED') {
+      if (inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') {
         received = requested;
       } else if (inspectorStatus === 'PARTIALLY_RECEIVED') {
         received = item.id ? (receivedQuantities[item.id] ?? 0) : 0;
-      } else if (inspectorStatus === 'PENDING' || inspectorStatus === 'CANCELLED') {
+      } else if (inspectorStatus === 'DRAFT' || inspectorStatus === 'SENT' || inspectorStatus === 'PENDING' || inspectorStatus === 'CANCELLED') {
         received = 0;
       } else {
         received = Number(item.receivedQuantity) || 0;
@@ -609,15 +711,29 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                   <select
                     value={inspectorStatus}
                     onChange={(e) => setInspectorStatus(e.target.value)}
-                    className="px-2 py-1 bg-[#fef9f1] border border-[#e8e2d8] rounded text-[11px] font-bold outline-none focus:border-[#ae001a] cursor-pointer text-[#1c1b16]"
+                    disabled={selectedOrderForInspect.status === 'RECEIVED' || selectedOrderForInspect.status === 'CANCELLED'}
+                    className="px-2 py-1 bg-[#fef9f1] border border-[#e8e2d8] rounded text-[11px] font-bold outline-none focus:border-[#ae001a] cursor-pointer text-[#1c1b16] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <option value="PENDING">PENDING</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                    <option value="CANCELLED">CANCELLED</option>
-                    <option value="PARTIALLY_RECEIVED">PARTIALLY RECEIVED</option>
+                    {getAllowedNextStatuses(selectedOrderForInspect.status).map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
+
                 </div>
               </div>
+
+              {/* Botón de edición si la orden está en estado DRAFT o SENT */}
+              {(selectedOrderForInspect.status === 'DRAFT' || selectedOrderForInspect.status === 'SENT') && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditMode(selectedOrderForInspect)}
+                  className="w-full py-2 bg-[#ae001a] text-white font-bold text-xs uppercase tracking-wider rounded hover:bg-[#8e0015] transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">edit</span>
+                  <span>Edit Order Items & Quantities</span>
+                </button>
+              )}
+
 
               <div className="border-t border-[#e8e2d8] pt-5 space-y-3">
                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">Order Metadata</h4>
@@ -661,14 +777,30 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                         <div className="flex items-center gap-3">
                           <span className="material-symbols-outlined text-[#5f5e5e] text-lg">box</span>
                           <div>
-                            <span className="block text-xs font-bold text-[#1c1b16]">{item.product?.name || `Product #${item.productId}`}</span>
+                            {/* Nombre: prioritizar rawMaterial, luego product */}
+                            <span className="block text-xs font-bold text-[#1c1b16]">
+                              {item.rawMaterial?.name ||
+                                item.product?.name ||
+                                (item.rawMaterialId ? `Supply #${item.rawMaterialId}` : `Product #${item.productId}`)}
+                            </span>
+                            {item.rawMaterial && (
+                              <span className="block text-[10px] text-emerald-700 font-bold uppercase">Raw Material</span>
+                            )}
                             {item.variant && (
                               <span className="block text-[10px] text-secondary">Variant: {item.variant.name}</span>
                             )}
                             {item.location && (
                               <span className="block text-[10px] text-zinc-500 font-bold">Dest: {item.location.name}</span>
                             )}
-                            <span className="block text-[10px] text-[#ae001a] font-mono">Qty: {item.quantity} × ${Number(item.unitPrice).toFixed(2)}</span>
+                            {/* Mostrar campos de insumo si aplica */}
+                            {item.rawMaterialId ? (
+                              <span className="block text-[10px] text-[#ae001a] font-mono">
+                                Qty: {Number(item.quantityOrdered ?? item.quantity).toFixed(2)} {item.purchaseUnit || ''} × ${Number(item.unitCost ?? item.unitPrice).toFixed(2)}
+                                {item.taxAmount && Number(item.taxAmount) > 0 ? ` + $${Number(item.taxAmount).toFixed(2)} tax` : ''}
+                              </span>
+                            ) : (
+                              <span className="block text-[10px] text-[#ae001a] font-mono">Qty: {item.quantity} × ${Number(item.unitPrice).toFixed(2)}</span>
+                            )}
 
                             {/* Control editable si es PARTIALLY_RECEIVED */}
                             {inspectorStatus === 'PARTIALLY_RECEIVED' ? (
@@ -677,29 +809,31 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                                 <input
                                   type="number"
                                   min="0"
-                                  max={item.quantity}
+                                  step="any"
+                                  max={Number(item.quantityOrdered ?? item.quantity)}
                                   value={item.id ? (receivedQuantities[item.id] ?? 0) : 0}
                                   onChange={(e) => {
                                     if (item.id) {
-                                      const val = Math.max(0, Math.min(item.quantity, Number(e.target.value) || 0));
+                                      const maxVal = Number(item.quantityOrdered ?? item.quantity);
+                                      const val = Math.max(0, Math.min(maxVal, Number(e.target.value) || 0));
                                       setReceivedQuantities(prev => ({
                                         ...prev,
                                         [item.id!]: val
                                       }));
                                     }
                                   }}
-                                  className="w-14 px-1 py-0.5 text-xs font-bold text-center border border-[#e8e2d8] rounded outline-none focus:border-[#ae001a] text-[#1c1b16]"
+                                  className="w-16 px-1 py-0.5 text-xs font-bold text-center border border-[#e8e2d8] rounded outline-none focus:border-[#ae001a] text-[#1c1b16]"
                                 />
-                                <span className="text-[10px] text-secondary font-mono">/ {item.quantity}</span>
-                                {item.quantity - (receivedQuantities[item.id!] ?? 0) > 0 && (
+                                <span className="text-[10px] text-secondary font-mono">/ {Number(item.quantityOrdered ?? item.quantity).toFixed(2)}</span>
+                                {Number(item.quantityOrdered ?? item.quantity) - (receivedQuantities[item.id!] ?? 0) > 0 && (
                                   <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 font-bold rounded">
-                                    {item.quantity - (receivedQuantities[item.id!] ?? 0)} pending
+                                    {(Number(item.quantityOrdered ?? item.quantity) - (receivedQuantities[item.id!] ?? 0)).toFixed(2)} pending
                                   </span>
                                 )}
                               </div>
                             ) : (
                               <span className="block text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1.5">
-                                <span>Received: {inspectorStatus === 'COMPLETED' ? item.quantity : (item.receivedQuantity || 0)} / {item.quantity}</span>
+                                <span>Received: {(inspectorStatus === 'RECEIVED' || inspectorStatus === 'COMPLETED') ? Number(item.quantityOrdered ?? item.quantity).toFixed(2) : (item.receivedQuantity || 0)} / {Number(item.quantityOrdered ?? item.quantity).toFixed(2)}</span>
                                 {inspectorStatus !== 'COMPLETED' && item.quantity - (item.receivedQuantity || 0) > 0 && (
                                   <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 font-bold rounded">
                                     {item.quantity - (item.receivedQuantity || 0)} pending
@@ -827,11 +961,12 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
               >
-                <option value="All">All Statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
+                <option value="All">All Status</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SENT">Sent</option>
                 <option value="PARTIALLY_RECEIVED">Partially Received</option>
+                <option value="RECEIVED">Received</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
 
               <button
@@ -900,31 +1035,32 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left">
-                  <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
+                  <thead className="bg-[#222222] text-white border-b border-[#222222]">
                     <tr>
-                      <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">
+                      <th className="px-6 py-3 text-label-caps font-bold text-white">
                         Order Reference Code
                       </th>
-                      <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">
+                      <th className="px-6 py-3 text-label-caps font-bold text-white">
                         Supplier Entity
                       </th>
-                      <th className="px-6 py-3 text-label-caps font-bold text-[#5f5e5e]">
+                      <th className="px-6 py-3 text-label-caps font-bold text-white">
                         Creation Timestamp
                       </th>
-                      <th className="px-6 py-3 text-right text-label-caps font-bold text-[#5f5e5e] w-32">
+                      <th className="px-6 py-3 text-right text-label-caps font-bold text-white w-32">
                         Total Gross Amount
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e] w-40">
+                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-40">
                         Fulfillment Progress
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e] w-36">
+                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-36">
                         Fulfillment Status
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-[#5f5e5e] w-24">
+                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-24">
                         Actions
                       </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-[#e8e2d8]">
                     {filteredOrders.length === 0 ? (
                       <tr>
@@ -947,7 +1083,11 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                         // Mapear estilos según la especificación
                         const uStatus = po.status.toUpperCase();
                         let badgeStyle = 'bg-blue-100 text-blue-800 border border-blue-200';
-                        if (uStatus === 'PENDING') {
+                        if (uStatus === 'DRAFT') {
+                          badgeStyle = 'bg-zinc-100 text-zinc-700 border border-zinc-300';
+                        } else if (uStatus === 'SENT') {
+                          badgeStyle = 'bg-blue-100 text-blue-800 border border-blue-200';
+                        } else if (uStatus === 'PENDING') {
                           badgeStyle = 'bg-amber-100 text-amber-800 border border-amber-200';
                         } else if (uStatus === 'APPROVED' || uStatus === 'COMPLETED' || uStatus === 'RECEIVED') {
                           badgeStyle = 'bg-emerald-100 text-emerald-800 border border-emerald-200';
@@ -957,28 +1097,33 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                           badgeStyle = 'bg-indigo-100 text-indigo-800 border border-indigo-200';
                         }
 
-                        // Calcular progreso de recepción
+                        // Calcular progreso de recepción (usar quantityOrdered para insumos)
                         let fulfillmentText = '0%';
                         let totalQtyRequested = 0;
                         let totalQtyReceived = 0;
                         if (po.purchaseOrderItems && po.purchaseOrderItems.length > 0) {
                           po.purchaseOrderItems.forEach(item => {
-                            totalQtyRequested += Number(item.quantity) || 0;
+                            totalQtyRequested += Number(item.quantityOrdered ?? item.quantity) || 0;
                             totalQtyReceived += Number(item.receivedQuantity) || 0;
                           });
                         }
 
-                        if (po.status === 'COMPLETED') {
+                        if (po.status === 'RECEIVED' || po.status === 'COMPLETED') {
                           fulfillmentText = '100% (Completed)';
+                        } else if (po.status === 'DRAFT') {
+                          fulfillmentText = 'Draft';
+                        } else if (po.status === 'SENT') {
+                          fulfillmentText = '0% (Sent)';
                         } else if (po.status === 'PENDING') {
                           fulfillmentText = '0% (Awaiting)';
                         } else if (po.status === 'CANCELLED') {
                           fulfillmentText = 'Cancelled';
                         } else if (totalQtyRequested > 0) {
                           const pct = Math.round((totalQtyReceived / totalQtyRequested) * 100);
-                          const pending = totalQtyRequested - totalQtyReceived;
+                          const pending = (totalQtyRequested - totalQtyReceived).toFixed(2);
                           fulfillmentText = `${pct}% (${pending} pending)`;
                         }
+
 
                         return (
                           <tr
@@ -1021,6 +1166,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                               >
                                 <span className="material-symbols-outlined text-[20px]">visibility</span>
                               </button>
+
                               <button
                                 onClick={() => handleOpenDeleteConfirm(po)}
                                 className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-all duration-200 cursor-pointer"
@@ -1029,6 +1175,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                                 <span className="material-symbols-outlined text-[20px]">delete</span>
                               </button>
                             </td>
+
                           </tr>
                         );
                       })
@@ -1068,8 +1215,9 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
           <div className="bg-white border border-[#e8e2d8] rounded shadow-sm p-6 space-y-6">
             <h2 className="text-lg font-black text-[#1c1b16] tracking-tight uppercase border-b border-[#e8e2d8] pb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-[#ae001a]">receipt_long</span>
-              Create Purchase Order
+              {editingOrderId ? `Edit Purchase Order #${editingOrderId}` : 'Create Purchase Order'}
             </h2>
+
 
             {/* Cabecera (Master Form) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1099,8 +1247,10 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                   onChange={(e) => setOrderStatus(e.target.value)}
                   className="w-full px-4 py-2.5 bg-[#fef9f1] border border-[#e8e2d8] rounded focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none text-body-md font-sans text-[#1c1b16] cursor-pointer"
                 >
-                  <option value="PENDING">Pending Approval</option>
-                  <option value="COMPLETED">Received / Completed</option>
+                  <option value="DRAFT">Draft (in preparation)</option>
+                  <option value="SENT">Sent to Supplier</option>
+                  <option value="PARTIALLY_RECEIVED">Partially Received</option>
+                  <option value="RECEIVED">Received</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
               </div>
@@ -1136,88 +1286,98 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
                   <table className="w-full border-collapse text-left">
                     <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                       <tr>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] w-1/4">Product</th>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] w-1/5">Variant</th>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] w-1/5">Destination Location</th>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] text-center w-16">Qty</th>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] text-right w-24">Unit Price</th>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] text-right w-24">Total</th>
-                        <th className="px-4 py-3 text-label-caps font-bold text-[#5f5e5e] text-center w-16">Actions</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] w-[22%]">Raw Material / Supply</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] w-[10%]">Purchase Unit</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] text-center w-[10%]">Qty Ordered</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] text-right w-[12%]">Unit Cost $</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] text-right w-[10%]">Tax $</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] text-right w-[12%]">Subtotal</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] w-[16%]">Dest. Location</th>
+                        <th className="px-3 py-3 text-label-caps font-bold text-[#5f5e5e] text-center w-[8%]">Del</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#e8e2d8] bg-white">
                       {itemRows.map((row) => (
                         <tr key={row.localId} className="hover:bg-zinc-50/50">
-                          <td className="px-4 py-3">
+                          {/* Supply Selector */}
+                          <td className="px-3 py-2">
                             <select
                               required
-                              value={row.productId}
-                              onChange={(e) => handleProductChange(row.localId, Number(e.target.value))}
-                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-md font-sans outline-none focus:border-[#ae001a] cursor-pointer"
+                              value={row.rawMaterialId}
+                              onChange={(e) => handleSupplyChange(row.localId, Number(e.target.value))}
+                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-sans outline-none focus:border-[#ae001a] cursor-pointer"
                             >
-                              <option value="">Select a product...</option>
-                              {products.map(prod => (
-                                <option key={prod.id} value={prod.id}>{prod.name}</option>
+                              <option value="">Select supply...</option>
+                              {supplies.map(s => (
+                                <option key={s.id} value={s.id}>{s.name} ({s.code || s.sku || ''})</option>
                               ))}
                             </select>
                           </td>
-                          <td className="px-4 py-3">
-                            {row.availableVariants.length > 0 ? (
-                              <select
-                                required
-                                value={row.variantId ?? ''}
-                                onChange={(e) => handleVariantChange(row.localId, Number(e.target.value))}
-                                className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-md font-sans outline-none focus:border-[#ae001a] cursor-pointer"
-                              >
-                                <option value="">Select variant...</option>
-                                {row.availableVariants.map(v => (
-                                  <option key={v.id} value={v.id}>{v.name} ({v.sku})</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-[10px] text-[#5f5e5e]/60 font-semibold uppercase tracking-wider px-2 py-1 bg-zinc-100 rounded">
-                                No Variants
-                              </span>
-                            )}
+                          {/* Purchase Unit */}
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={row.purchaseUnit}
+                              onChange={(e) => handlePurchaseUnitChange(row.localId, e.target.value.toUpperCase())}
+                              placeholder="KG"
+                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-bold font-sans outline-none focus:border-[#ae001a] uppercase"
+                            />
                           </td>
-                          <td className="px-4 py-3">
+                          {/* Qty Ordered */}
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              required
+                              min="0.0001"
+                              step="any"
+                              value={row.quantityOrdered}
+                              onChange={(e) => handleQuantityOrderedChange(row.localId, parseFloat(e.target.value) || 0)}
+                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-center text-xs font-sans outline-none focus:border-[#ae001a]"
+                            />
+                          </td>
+                          {/* Unit Cost */}
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              required
+                              min="0"
+                              step="0.0001"
+                              value={row.unitCost}
+                              onChange={(e) => handleUnitCostChange(row.localId, parseFloat(e.target.value) || 0)}
+                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-right text-xs font-sans outline-none focus:border-[#ae001a]"
+                            />
+                          </td>
+                          {/* Tax Amount */}
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.taxAmount}
+                              onChange={(e) => handleTaxChange(row.localId, parseFloat(e.target.value) || 0)}
+                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-right text-xs font-sans outline-none focus:border-[#ae001a]"
+                            />
+                          </td>
+                          {/* Subtotal */}
+                          <td className="px-3 py-2 text-right font-mono text-xs font-bold text-[#ae001a]">
+                            ${row.subtotal.toFixed(2)}
+                          </td>
+                          {/* Destination Location */}
+                          <td className="px-3 py-2">
                             <select
                               required
                               value={row.locationId}
                               onChange={(e) => handleLocationChange(row.localId, Number(e.target.value))}
-                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-md font-sans outline-none focus:border-[#ae001a] cursor-pointer"
+                              className="w-full px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-xs font-sans outline-none focus:border-[#ae001a] cursor-pointer"
                             >
-                              <option value="">Select location...</option>
+                              <option value="">Location...</option>
                               {locations.map(loc => (
                                 <option key={loc.id} value={loc.id}>{loc.name}</option>
                               ))}
                             </select>
                           </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              required
-                              min="1"
-                              value={row.quantity}
-                              onChange={(e) => handleQuantityChange(row.localId, parseInt(e.target.value) || 1)}
-                              className="w-16 px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-center text-body-md font-sans outline-none focus:border-[#ae001a]"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              required
-                              min="0"
-                              step="0.01"
-                              value={row.unitPrice}
-                              onChange={(e) => handleUnitPriceChange(row.localId, parseFloat(e.target.value) || 0)}
-                              className="w-24 px-2 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded text-right text-body-md font-sans outline-none focus:border-[#ae001a]"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-body-md font-bold text-[#1c1b16]">
-                            ${row.totalPrice.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-center">
+                          {/* Delete Row */}
+                          <td className="px-3 py-2 text-center">
                             <button
                               type="button"
                               onClick={() => handleRemoveRow(row.localId)}
