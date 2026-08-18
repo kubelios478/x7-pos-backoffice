@@ -37,7 +37,7 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
               <span
                 key={action.id ?? action.label}
                 aria-current="page"
-                className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps cursor-default"
+                className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps border-b-4 border-white cursor-default"
               >
                 {action.label}
               </span>

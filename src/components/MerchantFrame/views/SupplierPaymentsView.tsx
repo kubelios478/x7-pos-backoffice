@@ -472,6 +472,8 @@ interface PaymentDetailDrawerProps {
   items: SupplierPaymentItem[] | null; // null = loading
   allocations: SupplierPaymentAllocation[] | null; // null = loading
   onClose: () => void;
+  onManageItems?: () => void;
+  onManageAllocations?: () => void;
 }
 
 const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({
@@ -479,6 +481,8 @@ const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({
   items,
   allocations,
   onClose,
+  onManageItems,
+  onManageAllocations,
 }) => {
   useModalDismiss(onClose);
   return createPortal(
@@ -535,9 +539,20 @@ const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({
           </div>
 
           <div className="border-t border-[#e8e2d8] pt-5 space-y-3">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
-              Breakdown Items ({items?.length ?? 0})
-            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
+                Breakdown Items ({items?.length ?? 0})
+              </h4>
+              {onManageItems && (
+                <button
+                  type="button"
+                  onClick={onManageItems}
+                  className="text-[10px] font-bold uppercase tracking-widest text-[#1d1c17] hover:text-[#ae001a] transition-colors duration-200"
+                >
+                  Manage items
+                </button>
+              )}
+            </div>
             {items === null ? (
               <p className="text-xs text-[#5f5e5e]">Loading items…</p>
             ) : items.length > 0 ? (
@@ -558,9 +573,20 @@ const PaymentDetailDrawer: React.FC<PaymentDetailDrawerProps> = ({
           </div>
 
           <div className="border-t border-[#e8e2d8] pt-5 space-y-3">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
-              Allocations ({allocations?.length ?? 0})
-            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
+                Allocations ({allocations?.length ?? 0})
+              </h4>
+              {onManageAllocations && (
+                <button
+                  type="button"
+                  onClick={onManageAllocations}
+                  className="text-[10px] font-bold uppercase tracking-widest text-[#1d1c17] hover:text-[#ae001a] transition-colors duration-200"
+                >
+                  Manage allocations
+                </button>
+              )}
+            </div>
             {allocations === null ? (
               <p className="text-xs text-[#5f5e5e]">Loading allocations…</p>
             ) : allocations.length > 0 ? (
@@ -662,9 +688,18 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
 interface SupplierPaymentsViewProps {
   onNavigate?: (view: string) => void;
   companyId?: number;
+  // Salta al workspace de líneas de pago ya filtrado por este voucher.
+  onViewItems?: (payment: SupplierPayment) => void;
+  // Salta a la matriz de asignaciones ya filtrada por este voucher.
+  onViewAllocations?: (payment: SupplierPayment) => void;
 }
 
-export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNavigate, companyId }) => {
+export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({
+  onNavigate,
+  companyId,
+  onViewItems,
+  onViewAllocations,
+}) => {
   const activeCompanyId = companyId ?? 1;
 
   const [payments, setPayments] = useState<SupplierPayment[]>([]);
@@ -1261,6 +1296,28 @@ export const SupplierPaymentsView: React.FC<SupplierPaymentsViewProps> = ({ onNa
             setDetailAllocations(null);
             setDetailItems(null);
           }}
+          onManageItems={
+            onViewItems
+              ? () => {
+                  const target = detailPayment;
+                  setDetailPayment(null);
+                  setDetailAllocations(null);
+                  setDetailItems(null);
+                  onViewItems(target);
+                }
+              : undefined
+          }
+          onManageAllocations={
+            onViewAllocations
+              ? () => {
+                  const target = detailPayment;
+                  setDetailPayment(null);
+                  setDetailAllocations(null);
+                  setDetailItems(null);
+                  onViewAllocations(target);
+                }
+              : undefined
+          }
         />
       )}
 

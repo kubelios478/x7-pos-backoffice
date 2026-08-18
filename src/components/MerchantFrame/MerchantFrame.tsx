@@ -59,6 +59,9 @@ import { SupplierInvoicesView } from './views/SupplierInvoicesView';
 import { SupplierInvoiceItemsView } from './views/SupplierInvoiceItemsView';
 import { SupplierCreditNotesView } from './views/SupplierCreditNotesView';
 import { SupplierPaymentsView } from './views/SupplierPaymentsView';
+import { SupplierPaymentItemsView } from './views/SupplierPaymentItemsView';
+import { SupplierPaymentAllocationsView } from './views/SupplierPaymentAllocationsView';
+import type { SupplierPayment, SupplierCreditNote } from '../../types/accounts-payable';
 import { LocationsView } from './views/products-inventory/stocks/locations/LocationsView';
 import { PurchaseOrdersView } from './views/products-inventory/purchase-order/PurchaseOrdersView';
 import { StockInventoryView } from './views/products-inventory/stocks/items/StockInventoryView';
@@ -67,7 +70,12 @@ import { UserManagementView } from './views/UserManagementView';
 import { CompanyProfileView } from './views/CompanyProfileView';
 import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
 import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
+import { FloorPlansView } from './views/dining-system/FloorPlansView';
+import { FloorZonesView } from './views/dining-system/FloorZonesView';
+import { DiningTablesView } from './views/dining-system/DiningTablesView';
+import { TableAssignmentsView } from './views/dining-system/TableAssignmentsView';
 import { clearAuthSession } from '../../lib/auth-storage';
+import { getCurrentMerchantId } from '../../api/users';
 
 export const MerchantFrame: React.FC = () => {
   const location = useLocation();
@@ -84,6 +92,13 @@ export const MerchantFrame: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('saas'); // Categoria activa
   const [activeTab, setActiveTab] = useState<string>('saas-dashboard'); // Sub-item o vista activa
   const [linesEntryFilter, setLinesEntryFilter] = useState<JournalEntry | null>(null);
+  // Contexto padre al saltar de un voucher de pago a su desglose de líneas.
+  const [itemsPaymentFilter, setItemsPaymentFilter] = useState<SupplierPayment | null>(null);
+  // Contexto de origen al saltar a la matriz de asignaciones (pago o nota de crédito).
+  const [allocationsContext, setAllocationsContext] = useState<{
+    payment?: SupplierPayment | null;
+    creditNote?: SupplierCreditNote | null;
+  } | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
 
   // Traduce los nombres de tab internos de las vistas SaaS compartidas (SaaSFrame)
@@ -565,11 +580,103 @@ export const MerchantFrame: React.FC = () => {
     }
 
     if (activeTab === 'supplier-credit-notes') {
-      return <SupplierCreditNotesView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+      return (
+        <SupplierCreditNotesView
+          onNavigate={(view) => setActiveTab(view)}
+          companyId={profile?.company_id}
+          onViewAllocations={(creditNote) => {
+            setAllocationsContext({ creditNote });
+            setActiveTab('supplier-payments-allocation');
+          }}
+        />
+      );
     }
 
     if (activeTab === 'supplier-payments') {
-      return <SupplierPaymentsView onNavigate={(view) => setActiveTab(view)} companyId={profile?.company_id} />;
+      return (
+        <SupplierPaymentsView
+          onNavigate={(view) => setActiveTab(view)}
+          companyId={profile?.company_id}
+          onViewItems={(payment) => {
+            setItemsPaymentFilter(payment);
+            setActiveTab('supplier-payment-items');
+          }}
+          onViewAllocations={(payment) => {
+            setAllocationsContext({ payment });
+            setActiveTab('supplier-payments-allocation');
+          }}
+        />
+      );
+    }
+
+    if (activeTab === 'supplier-payment-items') {
+      return (
+        <SupplierPaymentItemsView
+          payment={itemsPaymentFilter}
+          onClearPayment={() => setItemsPaymentFilter(null)}
+          onNavigate={(view) => {
+            setItemsPaymentFilter(null);
+            setActiveTab(view);
+          }}
+          companyId={profile?.company_id}
+        />
+      );
+    }
+
+    if (activeTab === 'supplier-payments-allocation') {
+      return (
+        <SupplierPaymentAllocationsView
+          payment={allocationsContext?.payment ?? null}
+          creditNote={allocationsContext?.creditNote ?? null}
+          onClearContext={() => setAllocationsContext(null)}
+          onNavigate={(view) => {
+            setAllocationsContext(null);
+            setActiveTab(view);
+          }}
+          companyId={profile?.company_id}
+        />
+      );
+    }
+
+    if (activeTab === 'floor-plans') {
+      // `UserProfile` no expone merchant_id (solo name/role/portraitUrl/Plan_id/company_id, y
+      // company_id es el ámbito de Accounts Payable, no el merchant del dining-system), así que
+      // el merchant real se resuelve desde la sesión almacenada (el mismo id que viaja en el JWT
+      // con el que la vista llama a /api/floor-plan). Si no hay sesión, la vista aplica su default.
+      return (
+        <FloorPlansView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'tables') {
+      return (
+        <DiningTablesView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    if (activeTab === 'table-assignments') {
+      return (
+        <TableAssignmentsView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
+    }
+
+    // El feature id de las zonas es `table-zones` (Features.txt), no 'floor-zones'.
+    if (activeTab === 'table-zones') {
+      return (
+        <FloorZonesView
+          onNavigate={(view) => setActiveTab(view)}
+          merchantId={getCurrentMerchantId() ?? undefined}
+        />
+      );
     }
 
     if (activeTab === 'locations') {
