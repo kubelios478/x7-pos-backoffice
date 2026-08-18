@@ -35,7 +35,6 @@ import {
   StatusToggleButton,
 } from '../../shared/StatusToggle';
 
-
 type ModalMode = 'add' | 'edit';
 
 interface CompanyRegistryViewProps {

@@ -280,12 +280,14 @@ interface CreditNoteDetailDrawerProps {
   creditNote: SupplierCreditNote;
   allocations: SupplierPaymentAllocation[] | null; // null = loading
   onClose: () => void;
+  onManageAllocations?: () => void;
 }
 
 const CreditNoteDetailDrawer: React.FC<CreditNoteDetailDrawerProps> = ({
   creditNote,
   allocations,
   onClose,
+  onManageAllocations,
 }) => {
   useModalDismiss(onClose);
   return createPortal(
@@ -341,9 +343,20 @@ const CreditNoteDetailDrawer: React.FC<CreditNoteDetailDrawerProps> = ({
           </div>
 
           <div className="border-t border-[#e8e2d8] pt-5 space-y-3">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
-              Allocations ({allocations?.length ?? 0})
-            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#ae001a]">
+                Allocations ({allocations?.length ?? 0})
+              </h4>
+              {onManageAllocations && (
+                <button
+                  type="button"
+                  onClick={onManageAllocations}
+                  className="text-[10px] font-bold uppercase tracking-widest text-[#1d1c17] hover:text-[#ae001a] transition-colors duration-200"
+                >
+                  Manage allocations
+                </button>
+              )}
+            </div>
             {allocations === null ? (
               <p className="text-xs text-[#5f5e5e]">Loading allocations…</p>
             ) : allocations.length > 0 ? (
@@ -445,9 +458,15 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
 interface SupplierCreditNotesViewProps {
   onNavigate?: (view: string) => void;
   companyId?: number;
+  // Salta a la matriz de asignaciones ya filtrada por esta nota de crédito.
+  onViewAllocations?: (creditNote: SupplierCreditNote) => void;
 }
 
-export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = ({ onNavigate, companyId }) => {
+export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = ({
+  onNavigate,
+  companyId,
+  onViewAllocations,
+}) => {
   const activeCompanyId = companyId ?? 1;
 
   const [creditNotes, setCreditNotes] = useState<SupplierCreditNote[]>([]);
@@ -953,6 +972,16 @@ export const SupplierCreditNotesView: React.FC<SupplierCreditNotesViewProps> = (
             setDetailNote(null);
             setDetailAllocations(null);
           }}
+          onManageAllocations={
+            onViewAllocations
+              ? () => {
+                  const target = detailNote;
+                  setDetailNote(null);
+                  setDetailAllocations(null);
+                  onViewAllocations(target);
+                }
+              : undefined
+          }
         />
       )}
 
