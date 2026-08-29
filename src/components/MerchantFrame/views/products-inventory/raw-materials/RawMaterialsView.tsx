@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { StockQuickLinks } from '../stocks/StockQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Category {
@@ -412,74 +412,79 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
           />
         </div>
 
-        {/* Fila 2: Filtros + Acciones + Reload (Todos alineados a la izquierda) */}
-        <div className="flex flex-wrap items-center justify-start gap-3 pt-1">
-          {/* Categorías */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
-          >
-            <option value="All">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
-
-          {/* Unidades de Compra */}
-          <select
-            value={purchaseUnitFilter}
-            onChange={(e) => setPurchaseUnitFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
-          >
-            <option value="All">All Purchase Units</option>
-            <option value="KG">KG</option>
-            <option value="BOX">BOX</option>
-            <option value="LITER">LITER</option>
-            <option value="BAG">BAG</option>
-          </select>
-
-          {/* Unidades de Consumo */}
-          <select
-            value={consumptionUnitFilter}
-            onChange={(e) => setConsumptionUnitFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
-          >
-            <option value="All">All Consumption Units</option>
-            <option value="GRAM">GRAM</option>
-            <option value="MILLILITER">MILLILITER</option>
-            <option value="UNIT">UNIT</option>
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-          >
-            <option value="All">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-
-
-          {isInventorySpecialist && (
-            <button
-              onClick={handleOpenAdd}
-              className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Categorías */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
             >
-              <span className="material-symbols-outlined text-sm">add</span>
-              <span>ADD RAW MATERIAL</span>
-            </button>
-          )}
+              <option value="All">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
 
-          <button
-            onClick={() => fetchData()}
-            className="p-2 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-[#5f5e5e] hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans h-[38px] w-[38px]"
-            title="Reload raw materials data"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+            {/* Unidades de Compra */}
+            <select
+              value={purchaseUnitFilter}
+              onChange={(e) => setPurchaseUnitFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
+            >
+              <option value="All">All Purchase Units</option>
+              <option value="KG">KG</option>
+              <option value="BOX">BOX</option>
+              <option value="LITER">LITER</option>
+              <option value="BAG">BAG</option>
+            </select>
+
+            {/* Unidades de Consumo */}
+            <select
+              value={consumptionUnitFilter}
+              onChange={(e) => setConsumptionUnitFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer"
+            >
+              <option value="All">All Consumption Units</option>
+              <option value="GRAM">GRAM</option>
+              <option value="MILLILITER">MILLILITER</option>
+              <option value="UNIT">UNIT</option>
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
+            >
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {isInventorySpecialist && (
+              <button
+                onClick={handleOpenAdd}
+                className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                <span>ADD RAW MATERIAL</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => fetchData()}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+              title="Reload raw materials data"
+              aria-label="Reload table data"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -534,15 +539,18 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
               <tbody className="divide-y divide-[#e8e2d8]">
                 {filteredMaterials.map((m) => {
                   const isLowStock = m.minimumQty != null && (m.currentQty || 0) < m.minimumQty;
+                  const isInactive = m.isActive === false;
 
                   return (
                     <tr
                       key={m.id}
                       onClick={() => handleOpenView(m)}
-                      className="hover:bg-[#fcfbf9] transition-all cursor-pointer"
+                      className={`transition-all cursor-pointer ${
+                        isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
+                      }`}
                     >
                       <td className="px-6 py-4">
-                        <div className="font-sans font-bold text-gray-900 text-sm">{m.name}</div>
+                        <div className={`font-sans font-bold text-gray-900 text-sm ${isInactive ? 'line-through' : ''}`}>{m.name}</div>
                         {m.sku && (
                           <span className="inline-block bg-[#f0ebd9] text-[#222222] text-[10px] font-black uppercase px-2 py-0.5 mt-1 rounded tracking-wider">
                             {m.sku}
@@ -636,38 +644,8 @@ export const RawMaterialsView: React.FC<RawMaterialsViewProps> = ({ onNavigate }
     </div>
 
 
-      <QuickLaunchPanel
-        title="Quick Launch"
-        description="Transition smoothly between raw materials master data, recipes, stock balances, movements and accounting journal entries."
-        actions={[
-          {
-            label: 'RAW MATERIALS',
-            icon: 'inventory_2',
-            active: true,
-            onClick: () => onNavigate && onNavigate('raw-materials'),
-          },
-          {
-            label: 'RECIPES & BOM',
-            icon: 'restaurant',
-            onClick: () => onNavigate && onNavigate('recipes'),
-          },
-          {
-            label: 'STOCK LOCATIONS & LEVELS',
-            icon: 'warehouse',
-            onClick: () => onNavigate && onNavigate('stock-movements'),
-          },
-          {
-            label: 'STOCK MOVEMENTS',
-            icon: 'swap_vert',
-            onClick: () => onNavigate && onNavigate('movements'),
-          },
-          {
-            label: 'JOURNAL ENTRIES',
-            icon: 'book',
-            onClick: () => onNavigate && onNavigate('journal-entries'),
-          },
-        ]}
-      />
+      {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
+      <StockQuickLinks current="raw-materials" onNavigate={onNavigate} />
 
 
       {/* Drawer Interactivo */}

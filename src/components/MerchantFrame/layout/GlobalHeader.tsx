@@ -14,6 +14,8 @@ interface GlobalHeaderProps {
   isSidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   onLogoClick: () => void;
+  onSelectFeature?: (featureId: string, categoryId?: string) => void;
+  onMenuSearchChange?: (query: string) => void;
 }
 
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
@@ -26,12 +28,72 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   setShowNotifications,
   isSidebarCollapsed,
   onToggleSidebar,
-  onLogoClick
+  onLogoClick,
+  onSelectFeature,
+  onMenuSearchChange,
 }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tier, setTier] = useState<string>('');
 
+  // Estado para la Lupa de Búsqueda Desplegable en el Menú Lateral / Header
+  const [isMenuSearchOpen, setIsMenuSearchOpen] = useState<boolean>(false);
+  const [menuSearchQuery, setMenuSearchQuery] = useState<string>('');
+
   const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+
+  useEffect(() => {
+    if (isSidebarCollapsed) {
+      setIsMenuSearchOpen(false);
+      setMenuSearchQuery('');
+      onMenuSearchChange('');
+    }
+  }, [isSidebarCollapsed]);
+
+  // Lista estandarizada de todas las funcionalidades del backoffice para búsqueda rápida
+  const ALL_BACKOFFICE_FEATURES: Array<{ id: string; name: string; categoryId: string; categoryName: string }> = [
+    { id: 'products', name: 'Products Catalog', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
+    { id: 'categories', name: 'Product Categories', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
+    { id: 'modifiers', name: 'Product Modifiers', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
+    { id: 'variants', name: 'Product Variants', categoryId: 'catalog', categoryName: 'POS Product Catalog' },
+    { id: 'raw-materials', name: 'Raw Materials Workspace', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'raw-material-categories', name: 'Raw Material Categories', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'recipes', name: 'Product Recipes (BOM)', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'purchase-orders', name: 'Purchase Orders', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'locations', name: 'Inventory Locations', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'stock-movements', name: 'Stock & Inventory Control', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'movements', name: 'Inventory Movements Log', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'inventory-journal-lines', name: 'Inventory Journal Lines', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
+    { id: 'kitchen-stations', name: 'Kitchen Stations routing', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'floor-plans', name: 'Floor Plans Workspace', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'table-zones', name: 'Floor Zones', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'tables', name: 'Dining Tables', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'table-assignments', name: 'Table Assignments', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'cash-drawers', name: 'Cash Drawers', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'cash-shifts', name: 'Cash Shifts', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'cash-movements', name: 'Cash Movements', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'cash-transactions', name: 'Cash Transactions Log', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'ledger-accounts', name: 'Chart of Accounts (Ledger)', categoryId: 'financial-engine', categoryName: 'Financial Engine' },
+    { id: 'journal-entries', name: 'General Journal Entries', categoryId: 'financial-engine', categoryName: 'Financial Engine' },
+    { id: 'journal-entries-lines', name: 'Posting Journal Lines', categoryId: 'financial-engine', categoryName: 'Financial Engine' },
+    { id: 'merchant-tax-rules', name: 'Tax Rules Configuration', categoryId: 'configurations', categoryName: 'Merchant Configuration' },
+    { id: 'merchant-tips-rules', name: 'Tips Management Rules', categoryId: 'configurations', categoryName: 'Merchant Configuration' },
+    { id: 'merchant-overtime-rules', name: 'Overtime Rules', categoryId: 'configurations', categoryName: 'Merchant Configuration' },
+    { id: 'merchant-payroll-rules', name: 'Payroll Rules', categoryId: 'configurations', categoryName: 'Merchant Configuration' },
+    { id: 'suppliers', name: 'Master Suppliers', categoryId: 'accounts-payable', categoryName: 'Accounts Payable' },
+    { id: 'supplier-invoices', name: 'Supplier Invoices', categoryId: 'accounts-payable', categoryName: 'Accounts Payable' },
+    { id: 'supplier-credit-notes', name: 'Supplier Credit Notes', categoryId: 'accounts-payable', categoryName: 'Accounts Payable' },
+    { id: 'supplier-payments', name: 'Supplier Payments', categoryId: 'accounts-payable', categoryName: 'Accounts Payable' },
+    { id: 'merchant-directory', name: 'Merchant Directory', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'user-management', name: 'User Management', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'company-profile', name: 'Company Profile', categoryId: 'saas', categoryName: 'Platform SaaS' },
+    { id: 'company-configurations', name: 'Company Configurations', categoryId: 'saas', categoryName: 'Platform SaaS' },
+  ];
+
+  const menuSearchResults = menuSearchQuery.trim() === '' ? [] : ALL_BACKOFFICE_FEATURES.filter(item =>
+    item.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+    item.id.toLowerCase().includes(menuSearchQuery.toLowerCase()) ||
+    item.categoryName.toLowerCase().includes(menuSearchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     const fetchHeaderData = async () => {
@@ -54,13 +116,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   let parentAppName = '';
   let activeFeatureName = '';
 
-  // Buscar coincidencia en navCategories (aplica a todos los roles)
+  // 1. Intentar resolver parentAppName y activeFeatureName dinámicamente desde navCategories buscando por activeTab
   if (navCategories.length > 0) {
     for (const cat of navCategories) {
       for (const app of cat.applications) {
         const feat = app.features.find(f => f.id === activeTab);
         if (feat) {
-          parentAppName = app.name;
+          parentAppName = cat.name || app.name;
           activeFeatureName = feat.name;
           break;
         }
@@ -74,7 +136,26 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     }
   }
 
-  // Lista de pestañas pertenecientes al módulo de Productos e Inventario
+  // Lista de pestañas por dominio para mapear el Breadcrumb de forma 100% precisa e inmune a clics de acordeón
+  const restaurantOpsTabs = [
+    'kitchen-stations',
+    'kitchen-display-devices',
+    'kitchen-orders',
+    'kitchen-order-items',
+    'kitchen-event-log',
+    'kitchen-analytics',
+    'kitchen-kds-hub',
+    'kds-dashboard',
+    'floor-plans',
+    'table-zones',
+    'tables',
+    'table-assignments',
+    'cash-drawers',
+    'cash-shifts',
+    'cash-movements',
+    'cash-transactions',
+  ];
+
   const productsInventoryTabs = [
     'products',
     'categories',
@@ -87,20 +168,57 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     'movements',
     'locations',
     'purchase-orders',
-    'suppliers',
+    'inventory-journal-lines',
   ];
 
-  // Si navCategories encontró el padre dinámicamente en el menú lateral (ej. "Food Costing" o "Products/Inventory System"), lo respetamos
-  if (!parentAppName) {
-    if (productsInventoryTabs.includes(activeTab) || activeCategory === 'products-inventory' || activeCategory === 'inventory') {
-      parentAppName = 'Products/Inventory System';
-    } else if (['merchant-directory', 'company-profile', 'company-configurations', 'saas-dashboard'].includes(activeTab)) {
-      parentAppName = 'Platform SaaS';
-    } else if (activeTab === 'dashboard') {
-      parentAppName = 'CORE';
-    } else {
-      parentAppName = activeCategory ? activeCategory.toUpperCase() : 'SYSTEM';
-    }
+  const accountsPayableTabs = [
+    'suppliers',
+    'supplier-invoices',
+    'supplier-invoice-items',
+    'supplier-credit-notes',
+    'supplier-payments',
+    'supplier-payment-items',
+    'supplier-payments-allocation',
+  ];
+
+  const financialEngineTabs = [
+    'ledger-accounts',
+    'journal-entries',
+    'journal-entries-lines',
+  ];
+
+  const ruleConfigTabs = [
+    'merchant-tax-rules',
+    'merchant-tips-rules',
+    'merchant-overtime-rules',
+    'merchant-payroll-rules',
+  ];
+
+  const saasTabs = [
+    'merchant-directory',
+    'user-management',
+    'company-profile',
+    'company-configurations',
+    'saas-dashboard',
+  ];
+
+  // Forzar la categoría padre real según la vista abierta (activeTab)
+  if (restaurantOpsTabs.includes(activeTab)) {
+    parentAppName = 'Restaurant Operations';
+  } else if (productsInventoryTabs.includes(activeTab)) {
+    parentAppName = 'Products & Inventory System';
+  } else if (accountsPayableTabs.includes(activeTab)) {
+    parentAppName = 'Accounts Payable';
+  } else if (financialEngineTabs.includes(activeTab)) {
+    parentAppName = 'Financial Engine';
+  } else if (ruleConfigTabs.includes(activeTab)) {
+    parentAppName = 'Rule Configuration';
+  } else if (saasTabs.includes(activeTab)) {
+    parentAppName = 'Platform SaaS';
+  } else if (activeTab === 'dashboard') {
+    parentAppName = 'CORE';
+  } else if (!parentAppName) {
+    parentAppName = 'SYSTEM';
   }
 
   // Fallback de nombres de features si no vinieron en navCategories
@@ -117,6 +235,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     else if (activeTab === 'locations') activeFeatureName = 'Inventory Locations';
     else if (activeTab === 'purchase-orders') activeFeatureName = 'Purchase Orders';
     else if (activeTab === 'suppliers') activeFeatureName = 'Master Suppliers';
+    else if (activeTab === 'kds-dashboard' || activeTab === 'kitchen-kds-hub') activeFeatureName = 'KDS Command Hub';
+    else if (activeTab === 'kitchen-stations') activeFeatureName = 'Kitchen Stations Directory';
     else activeFeatureName = activeTab.replace(/-/g, ' ').toUpperCase();
   }
 
@@ -137,6 +257,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     friendlyTitle = 'Stock and Stock Movements Management';
   } else if (activeTab === 'locations') {
     friendlyTitle = 'Inventory Locations';
+  } else if (activeTab === 'kitchen-stations') {
+    friendlyTitle = 'Kitchen Stations Directory';
   } else if (activeTab === 'purchase-orders') {
     friendlyTitle = 'Purchase Orders';
   } else if (activeTab === 'merchant-directory') {
@@ -172,40 +294,142 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   return (
     <header className="fixed top-0 left-0 right-0 h-header-height z-50 flex border-b border-[#e8e2d8] select-none font-sans overflow-hidden">
-      {/* Apartado del Logo con su nombre, con su background de color negro */}
-      <div className="w-64 h-full bg-[#222222] flex items-center gap-2 px-4 shrink-0 border-r border-white/10">
-        {/* Botón de Hamburguesa */}
-        <button 
-          onClick={onToggleSidebar}
-          className="p-1 hover:bg-white/10 active:scale-95 transition-all text-white rounded flex items-center justify-center cursor-pointer shrink-0"
-          title={isSidebarCollapsed ? "Mostrar menú" : "Ocultar menú"}
-        >
-          <span className="material-symbols-outlined text-[24px]">menu</span>
-        </button>
+      {/* Apartado del Logo con su nombre, con su background de color negro (#222222) */}
+      <div className="w-64 h-full bg-[#222222] flex items-center justify-between px-3 shrink-0 border-r border-white/10 relative">
+        {!isMenuSearchOpen ? (
+          <>
+            {/* Agrupación Fija a la Izquierda: Hamburguesa + Logo (sin desplazamiento) */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* Botón de Hamburguesa */}
+              <button 
+                onClick={onToggleSidebar}
+                className="p-1 hover:bg-white/10 active:scale-95 transition-all text-white rounded flex items-center justify-center cursor-pointer shrink-0"
+                title={isSidebarCollapsed ? "Mostrar menú" : "Ocultar menú"}
+              >
+                <span className="material-symbols-outlined text-[24px]">menu</span>
+              </button>
 
-        {/* Logo / Branding del Backoffice */}
-        <div 
-          onClick={onLogoClick}
-          className="flex items-center gap-2 cursor-pointer hover:opacity-90 active:scale-98 transition-all select-none min-w-0"
-        >
-          <img 
-            alt="X7 Point of Sale" 
-            className="w-auto object-contain h-[32px] shrink-0" 
-            src={logoX7} 
-          />
-          <div className="text-left flex flex-col justify-center min-w-0">
-            <span 
-              style={{ color: '#ffffff', display: 'block', fontSize: '12px', fontWeight: 'bold', lineHeight: '1.2', letterSpacing: '0.08em', textTransform: 'uppercase' }}
+              {/* Logo / Branding Completo del Backoffice */}
+              <div 
+                onClick={onLogoClick}
+                className="flex items-center gap-2 cursor-pointer hover:opacity-90 active:scale-98 transition-all select-none min-w-0"
+              >
+                <img 
+                  alt="X7 Point of Sale" 
+                  className="w-auto object-contain h-[30px] shrink-0" 
+                  src={logoX7} 
+                />
+                <div className="text-left flex flex-col justify-center min-w-0">
+                  <span 
+                    style={{ color: '#ffffff', display: 'block', fontSize: '11px', fontWeight: 'bold', lineHeight: '1.2', letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                  >
+                    POINT OF SALE
+                  </span>
+                  <span 
+                    style={{ color: '#d51f2c', display: 'block', fontSize: '9px', fontWeight: 'bold', lineHeight: '1.2', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '1px' }}
+                  >
+                    Backoffice
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Lupa a la derecha (espacio reservado de forma fija para evitar saltos del logo) */}
+            <button
+              type="button"
+              onClick={() => setIsMenuSearchOpen(true)}
+              className={`p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded transition-all cursor-pointer shrink-0 ml-auto ${
+                isSidebarCollapsed ? 'invisible pointer-events-none' : 'visible opacity-100'
+              }`}
+              title="Buscar en menú lateral"
+              aria-label="Buscar en menú lateral"
             >
-              POINT OF SALE
-            </span>
-            <span 
-              style={{ color: '#d51f2c', display: 'block', fontSize: '9px', fontWeight: 'bold', lineHeight: '1.2', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '2px' }}
+              <span className="material-symbols-outlined text-[20px]">search</span>
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Logo en tamaño completo original (Solo Icono X7 + Búsqueda) */}
+            <div 
+              onClick={onLogoClick}
+              className="flex items-center cursor-pointer hover:opacity-90 transition-all select-none shrink-0"
+              title="X7 POS Home"
             >
-              Backoffice
-            </span>
+              <img 
+                alt="X7 POS" 
+                className="w-auto object-contain h-[30px] shrink-0" 
+                src={logoX7} 
+              />
+            </div>
+
+            {/* Campo de Búsqueda Desplegado */}
+            <div className="flex-1 relative flex items-center min-w-0 ml-1">
+              <input
+                type="text"
+                autoFocus
+                value={menuSearchQuery}
+                onChange={(e) => {
+                  setMenuSearchQuery(e.target.value);
+                  onMenuSearchChange?.(e.target.value);
+                }}
+                placeholder="Search menu..."
+                className="w-full bg-white/10 border border-white/20 text-white placeholder-white/50 text-xs pl-2 pr-7 py-1 rounded outline-none focus:border-[#d51f2c] transition-all font-sans"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuSearchOpen(false);
+                  setMenuSearchQuery('');
+                  onMenuSearchChange?.('');
+                }}
+                className="absolute right-1 text-white/60 hover:text-white transition-colors cursor-pointer"
+                title="Cerrar búsqueda"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Desplegable en vivo de Resultados de Búsqueda */}
+        {isMenuSearchOpen && menuSearchQuery.trim() !== '' && (
+          <div className="absolute top-16 left-0 w-64 bg-[#2a2a2a] text-white shadow-2xl rounded-b border-b border-x border-white/10 z-[10000] p-2 max-h-80 overflow-y-auto text-left font-sans animate-fade-in">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-white/50 px-2 py-1 border-b border-white/10 mb-1 flex justify-between items-center">
+              <span>Menu Search ({menuSearchResults.length})</span>
+              <span className="text-[9px] text-white/40">Click to navigate</span>
+            </div>
+            {menuSearchResults.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-white/60">
+                No matching menu items found
+              </div>
+            ) : (
+              menuSearchResults.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    onSelectFeature?.(item.id, item.categoryId);
+                    setIsMenuSearchOpen(false);
+                    setMenuSearchQuery('');
+                    onMenuSearchChange?.('');
+                  }}
+                  className="px-2.5 py-2 hover:bg-white/10 rounded cursor-pointer transition-colors flex items-center justify-between text-xs group"
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="font-semibold text-white group-hover:text-[#d51f2c] transition-colors truncate">
+                      {item.name}
+                    </span>
+                    <span className="text-[10px] text-white/50 truncate">
+                      {item.categoryName}
+                    </span>
+                  </div>
+                  <span className="material-symbols-outlined text-white/40 group-hover:text-white text-[16px] shrink-0">
+                    chevron_right
+                  </span>
+                </div>
+              ))
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Contenido principal del Header con fondo claro */}

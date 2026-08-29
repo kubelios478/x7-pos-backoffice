@@ -1,5 +1,5 @@
 //
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   restaurantService,
@@ -15,7 +15,8 @@ import type {
 } from '../../services/restaurantService';
 import { navigationService } from '../../services/navigationService';
 import type {
-  NavCategory
+  NavCategory,
+  NavApplication
 } from '../../services/navigationService';
 import { GlobalHeader } from './layout/GlobalHeader';
 import { GlobalFooter } from './layout/GlobalFooter';
@@ -24,7 +25,7 @@ import { TablesOccupancyCard } from './dashboard/TablesOccupancyCard';
 import { KitchenPerformanceCard } from './dashboard/KitchenPerformanceCard';
 import { TopSellingItems } from './dashboard/TopSellingItems';
 import { CurrentShifts } from './dashboard/CurrentShifts';
-import { KitchenMonitorView } from './views/KitchenMonitorView';
+import { KitchenMonitorView } from './views/restaurant-operations/kitchen-stations/KitchenMonitorView';
 import {
   NewReservationModal,
   VoidTransactionModal,
@@ -46,10 +47,10 @@ import { CategoriesView } from './views/products-inventory/category/CategoriesVi
 import { ProductsView } from './views/products-inventory/products/ProductsView';
 import { VariantsView } from './views/products-inventory/variants/VariantsView';
 import { ModifiersView } from './views/products-inventory/modifiers/ModifiersView';
-import { TaxRulesView } from './views/TaxRulesView';
-import { TipRulesView } from './views/TipRulesView';
-import { OvertimeRulesView } from './views/OvertimeRulesView';
-import { PayrollRulesView } from './views/PayrollRulesView';
+import { TaxRulesView } from './views/rule-config/TaxRulesView';
+import { TipRulesView } from './views/rule-config/TipRulesView';
+import { OvertimeRulesView } from './views/rule-config/OvertimeRulesView';
+import { PayrollRulesView } from './views/rule-config/PayrollRulesView';
 import { CashDrawersView } from './views/restaurant-operations/CashDrawersView';
 import { CashShiftsView } from './views/restaurant-operations/CashShiftsView';
 import { CashTransactionsView } from './views/restaurant-operations/CashTransactionsView';
@@ -58,22 +59,23 @@ import { CashDrawerHistoryView } from './views/restaurant-operations/CashDrawerH
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
 import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
 import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
+import { InventoryJournalLinesView } from './views/products-inventory/stocks/journal-lines/InventoryJournalLinesView';
 import type { JournalEntry } from '../../types/accounting';
-import { SuppliersView } from './views/SuppliersView';
-import { SupplierInvoicesView } from './views/SupplierInvoicesView';
-import { SupplierInvoiceItemsView } from './views/SupplierInvoiceItemsView';
-import { SupplierCreditNotesView } from './views/SupplierCreditNotesView';
-import { SupplierPaymentsView } from './views/SupplierPaymentsView';
-import { SupplierPaymentItemsView } from './views/SupplierPaymentItemsView';
-import { SupplierPaymentAllocationsView } from './views/SupplierPaymentAllocationsView';
+import { SuppliersView } from './views/accounts-payable/SuppliersView';
+import { SupplierInvoicesView } from './views/accounts-payable/SupplierInvoicesView';
+import { SupplierInvoiceItemsView } from './views/accounts-payable/SupplierInvoiceItemsView';
+import { SupplierCreditNotesView } from './views/accounts-payable/SupplierCreditNotesView';
+import { SupplierPaymentsView } from './views/accounts-payable/SupplierPaymentsView';
+import { SupplierPaymentItemsView } from './views/accounts-payable/SupplierPaymentItemsView';
+import { SupplierPaymentAllocationsView } from './views/accounts-payable/SupplierPaymentAllocationsView';
 import type { SupplierPayment, SupplierCreditNote } from '../../types/accounts-payable';
 import { LocationsView } from './views/products-inventory/stocks/locations/LocationsView';
 import { PurchaseOrdersView } from './views/products-inventory/purchase-order/PurchaseOrdersView';
 import { StockInventoryView } from './views/products-inventory/stocks/items/StockInventoryView';
-import { MerchantDirectoryView } from './views/MerchantDirectoryView';
-import { UserManagementView } from './views/UserManagementView';
-import { CompanyProfileView } from './views/CompanyProfileView';
-import { CompanyConfigurationsView } from './views/CompanyConfigurationsView';
+import { MerchantDirectoryView } from './views/company-admin/MerchantDirectoryView';
+import { UserManagementView } from './views/company-admin/UserManagementView';
+import { CompanyProfileView } from './views/company-admin/CompanyProfileView';
+import { CompanyConfigurationsView } from './views/company-admin/CompanyConfigurationsView';
 import { MovementsView } from './views/products-inventory/stocks/movements/MovementsView';
 import { FloorPlansView } from './views/dining-system/FloorPlansView';
 import { FloorZonesView } from './views/dining-system/FloorZonesView';
@@ -82,6 +84,8 @@ import { TableAssignmentsView } from './views/dining-system/TableAssignmentsView
 import { RawMaterialsView } from './views/products-inventory/raw-materials/RawMaterialsView';
 import { RawMaterialCategoriesView } from './views/products-inventory/category/RawMaterialCategoriesView';
 import { RecipesView } from './views/products-inventory/recipes/RecipesView';
+import { KitchenStationsView } from './views/restaurant-operations/kitchen-stations/KitchenStationsView';
+import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
 import { clearAuthSession } from '../../lib/auth-storage';
 import { getCurrentMerchantId } from '../../api/users';
 
@@ -180,15 +184,24 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/company-configurations') {
       setActiveCategory('platformsaas');
       setActiveTab('company-configurations');
-    } else if (path === '/dashboard/raw-materials') {
+    } else if (path === '/dashboard/raw-materials' || path === '/inventory/raw-materials') {
       setActiveCategory('inventory');
       setActiveTab('raw-materials');
     } else if (path === '/dashboard/raw-material-categories') {
       setActiveCategory('inventory');
       setActiveTab('raw-material-categories');
-    } else if (path === '/dashboard/recipes') {
+    } else if (path === '/dashboard/recipes' || path === '/inventory/recipes') {
       setActiveCategory('inventory');
       setActiveTab('recipes');
+    } else if (path === '/inventory/stocks') {
+      setActiveCategory('inventory');
+      setActiveTab('stock-movements');
+    } else if (path === '/inventory/movements') {
+      setActiveCategory('inventory');
+      setActiveTab('movements');
+    } else if (path === '/inventory/journal-entries' || path === '/inventory/journal-lines') {
+      setActiveCategory('inventory');
+      setActiveTab('journal-entries');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
@@ -218,6 +231,37 @@ export const MerchantFrame: React.FC = () => {
   const [navCategories, setNavCategories] = useState<NavCategory[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
+
+  // Filtrado reactivo en tiempo real del menú lateral (estricto a nivel de elemento/feature)
+  const filteredNavCategories = useMemo(() => {
+    const query = sidebarSearchQuery.trim().toLowerCase();
+    if (!query) return navCategories;
+
+    return navCategories
+      .map((cat) => {
+        const filteredApps = cat.applications
+          .map((app) => {
+            const filteredFeats = app.features.filter((feat) => {
+              const featName = feat.name.toLowerCase();
+              const featId = feat.id.toLowerCase();
+              return featName.includes(query) || featId.includes(query);
+            });
+
+            if (filteredFeats.length > 0) {
+              return { ...app, features: filteredFeats };
+            }
+            return null;
+          })
+          .filter((app): app is NavApplication => app !== null);
+
+        if (filteredApps.length > 0) {
+          return { ...cat, applications: filteredApps };
+        }
+        return null;
+      })
+      .filter((cat): cat is NavCategory => cat !== null);
+  }, [navCategories, sidebarSearchQuery]);
 
   const loadNavigation = async (userProfile: UserProfile) => {
     try {
@@ -234,33 +278,7 @@ export const MerchantFrame: React.FC = () => {
     }
   }, [profile, refreshTrigger]);
 
-  // Auto-expandir la categoría y aplicación activas si corresponden al tab activo
-  useEffect(() => {
-    if (navCategories.length > 0) {
-      // Si hay un tab activo, expandir la categoría y app que lo contengan
-      if (activeTab) {
-        navCategories.forEach(cat => {
-          cat.applications.forEach(app => {
-            const hasFeat = app.features.some(f => f.id === activeTab);
-            if (hasFeat) {
-              setExpandedCategories(prev => ({ ...prev, [cat.id]: true }));
-              setExpandedApps(prev => ({ ...prev, [app.id]: true }));
-              setActiveCategory(cat.id);
-            }
-          });
-        });
-      }
-
-      // Si ninguna categoría está expandida, expandir la primera por defecto
-      setExpandedCategories(prev => {
-        const hasAnyExpanded = Object.values(prev).some(Boolean);
-        if (!hasAnyExpanded && navCategories[0]) {
-          return { ...prev, [navCategories[0].id]: true };
-        }
-        return prev;
-      });
-    }
-  }, [navCategories]);
+  // Las categorías y aplicaciones del menú lateral permanecen cerradas/colapsadas por defecto al iniciar sesión
 
 
   // Estados de UI
@@ -563,7 +581,14 @@ export const MerchantFrame: React.FC = () => {
       return <LedgerAccountsView onNavigate={(view) => setActiveTab(view)} />;
     }
 
+    if (activeTab === 'inventory-journal-lines') {
+      return <InventoryJournalLinesView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
     if (activeTab === 'journal-entries') {
+      if (activeCategory === 'inventory') {
+        return <InventoryJournalLinesView onNavigate={(view) => setActiveTab(view)} />;
+      }
       return (
         <JournalEntriesView
           onNavigate={(view) => setActiveTab(view)}
@@ -764,6 +789,19 @@ export const MerchantFrame: React.FC = () => {
       return <RecipesView onNavigate={(view) => setActiveTab(view)} />;
     }
 
+    if (activeTab === 'kds-dashboard' || activeTab === 'kitchen-kds-hub') {
+      return (
+        <KitchenKDSHubView
+          onNavigate={(view) => setActiveTab(view)}
+          onOpenLiveMonitor={() => setShowKitchenKDS(true)}
+        />
+      );
+    }
+
+    if (activeTab === 'kitchen-stations') {
+      return <KitchenStationsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
 
     if (activeTab !== 'dashboard') {
       // Resolver nombre e icono dinámicamente desde navCategories
@@ -931,10 +969,16 @@ export const MerchantFrame: React.FC = () => {
       }`}>
         {/* Sidebar Nav (AC 4.1) */}
         <nav className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll py-4 space-y-1 text-left">
-          {profile?.role === 'SaaS Owner' ? (
-            // Menú dinámico para SaaS Owner — usa navCategories filtrado por isSaaS
-            navCategories.map((cat) => {
-              const isCatExpanded = !!expandedCategories[cat.id];
+          {filteredNavCategories.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-white/50 space-y-1">
+              <span className="material-symbols-outlined text-2xl text-white/30">search_off</span>
+              <p className="font-semibold">No menu items match</p>
+              <p className="text-[10px] text-white/40">"{sidebarSearchQuery}"</p>
+            </div>
+          ) : profile?.role === 'SaaS Owner' ? (
+            // Menú dinámico para SaaS Owner — usa filteredNavCategories
+            filteredNavCategories.map((cat) => {
+              const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
               const hasActiveTab = cat.applications.some(app =>
                 app.features.some(f => f.id === activeTab)
               );
@@ -945,10 +989,20 @@ export const MerchantFrame: React.FC = () => {
                   {/* L1: Categoría */}
                   <div
                     onClick={() => {
+                      const isCurrentlyExpanded = !!expandedCategories[cat.id];
                       setExpandedCategories(prev => ({
                         ...prev,
                         [cat.id]: !prev[cat.id]
                       }));
+                      if (isCurrentlyExpanded) {
+                        setExpandedApps(prevApps => {
+                          const nextApps = { ...prevApps };
+                          cat.applications.forEach(app => {
+                            delete nextApps[app.id];
+                          });
+                          return nextApps;
+                        });
+                      }
                       setActiveCategory(cat.id);
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
@@ -971,17 +1025,26 @@ export const MerchantFrame: React.FC = () => {
                   {isCatExpanded && (
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
-                        const isAppExpanded = !!expandedApps[app.id];
-                        const isAppSelected = app.features.some(f => f.id === activeTab);
+                        const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
+                        const isAppExpanded = !isKDSApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isAppSelected = isKDSApp
+                          ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
+                          : app.features.some(f => f.id === activeTab);
 
                         return (
                           <div key={app.id} className="w-full text-left">
                             <div
                               onClick={() => {
-                                setExpandedApps(prev => ({
-                                  ...prev,
-                                  [app.id]: !prev[app.id]
-                                }));
+                                if (isKDSApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('kds-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
+                                } else {
+                                  setExpandedApps(prev => ({
+                                    ...prev,
+                                    [app.id]: !prev[app.id]
+                                  }));
+                                }
                               }}
                               className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
                                 isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
@@ -995,8 +1058,8 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* L3: Features */}
-                            {isAppExpanded && (
+                            {/* L3: Features (Omitido para Kitchen Display System) */}
+                            {isAppExpanded && !isKDSApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;
@@ -1029,8 +1092,8 @@ export const MerchantFrame: React.FC = () => {
               );
             })
           ) : (
-            navCategories.map((cat) => {
-              const isCatExpanded = !!expandedCategories[cat.id];
+            filteredNavCategories.map((cat) => {
+              const isCatExpanded = sidebarSearchQuery.trim() !== '' || !!expandedCategories[cat.id];
               
               // Determinar si alguna característica dentro de esta categoría está activa
               const hasActiveTab = cat.applications.some(app => 
@@ -1043,10 +1106,20 @@ export const MerchantFrame: React.FC = () => {
                   {/* Nivel 1: Categoría */}
                   <div
                     onClick={() => {
+                      const isCurrentlyExpanded = !!expandedCategories[cat.id];
                       setExpandedCategories(prev => ({
                         ...prev,
                         [cat.id]: !prev[cat.id]
                       }));
+                      if (isCurrentlyExpanded) {
+                        setExpandedApps(prevApps => {
+                          const nextApps = { ...prevApps };
+                          cat.applications.forEach(app => {
+                            delete nextApps[app.id];
+                          });
+                          return nextApps;
+                        });
+                      }
                       setActiveCategory(cat.id);
                     }}
                     className={`py-2.5 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 border-l-2 ${
@@ -1069,17 +1142,26 @@ export const MerchantFrame: React.FC = () => {
                   {isCatExpanded && (
                     <div className="mt-1 flex flex-col space-y-1">
                       {cat.applications.map((app) => {
-                        const isAppExpanded = !!expandedApps[app.id];
-                        const isAppSelected = app.features.some(f => f.id === activeTab);
+                        const isKDSApp = app.id === 'kitchen-display-system' || app.id === 'kds' || app.name === 'Kitchen Display System';
+                        const isAppExpanded = !isKDSApp && (sidebarSearchQuery.trim() !== '' || !!expandedApps[app.id]);
+                        const isAppSelected = isKDSApp
+                          ? ['kds-dashboard', 'kitchen-kds-hub', 'kitchen-stations', 'kitchen-display-devices', 'kitchen-orders', 'kitchen-order-items', 'kitchen-event-log', 'kitchen-analytics'].includes(activeTab)
+                          : app.features.some(f => f.id === activeTab);
 
                         return (
                           <div key={app.id} className="w-full text-left">
                             <div
                               onClick={() => {
-                                setExpandedApps(prev => ({
-                                  ...prev,
-                                  [app.id]: !prev[app.id]
-                                }));
+                                if (isKDSApp) {
+                                  setActiveCategory(cat.id);
+                                  setActiveTab('kds-dashboard');
+                                  navigate('/dashboard', { state: { activeTab: 'kds-dashboard', activeCategory: cat.id } });
+                                } else {
+                                  setExpandedApps(prev => ({
+                                    ...prev,
+                                    [app.id]: !prev[app.id]
+                                  }));
+                                }
                               }}
                               className={`ml-10 py-2 px-3 text-[13px] flex items-center gap-2 cursor-pointer hover:bg-white/5 transition-colors font-sans duration-200 ${
                                 isAppSelected ? 'text-[#d51f2c] font-semibold' : 'text-white/70 hover:text-white'
@@ -1093,8 +1175,8 @@ export const MerchantFrame: React.FC = () => {
                               <span>{app.name}</span>
                             </div>
 
-                            {/* Nivel 3: Características */}
-                            {isAppExpanded && (
+                            {/* Nivel 3: Características (Omitido para Kitchen Display System ya que se navega internamente desde el hub) */}
+                            {isAppExpanded && !isKDSApp && (
                               <div className="ml-14 mt-1 border-l border-white/10 space-y-1">
                                 {app.features.map((feat) => {
                                   const isFeatActive = activeTab === feat.id;
@@ -1184,6 +1266,12 @@ export const MerchantFrame: React.FC = () => {
           }
           navigate('/dashboard');
         }}
+        onSelectFeature={(featureId, categoryId) => {
+          if (categoryId) setActiveCategory(categoryId);
+          setActiveTab(featureId);
+          navigate('/dashboard', { state: { activeTab: featureId, activeCategory: categoryId } });
+        }}
+        onMenuSearchChange={(query) => setSidebarSearchQuery(query)}
       />
 
       <main className={`fixed top-16 bottom-0 right-0 overflow-y-auto overflow-x-hidden bg-[#f1ece4] p-4 md:p-8 custom-scrollbar transition-all duration-300 ease-in-out ${

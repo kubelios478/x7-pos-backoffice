@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../lib/auth-storage';
 import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { StockQuickLinks } from '../stocks/StockQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Category {
@@ -250,36 +251,39 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
           />
         </div>
 
-        {/* Fila 2: Filtro Status + Acciones + Reload (Todos alineados a la izquierda) */}
-        <div className="flex flex-wrap items-center justify-start gap-3 pt-1">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-          >
-            <option value="All">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-
-
-          {isInventorySpecialist && (
-            <button
-              onClick={handleOpenAdd}
-              className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
             >
-              <span className="material-symbols-outlined text-sm">add</span>
-              <span>ADD CATEGORY</span>
-            </button>
-          )}
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
 
-          <button
-            onClick={() => fetchData()}
-            className="p-2 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-[#5f5e5e] hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans h-[38px] w-[38px]"
-            title="Reload categories data"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {isInventorySpecialist && (
+              <button
+                onClick={handleOpenAdd}
+                className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                <span>ADD CATEGORY</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => fetchData()}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+              title="Reload categories data"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -361,19 +365,7 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
         )}
       </div>
 
-      <QuickLaunchPanel
-        description="Access common stock configurations, warehouse locations and suppliers."
-        actions={[
-          {
-            label: 'Raw Materials',
-            onClick: () => onNavigate && onNavigate('raw-materials'),
-          },
-          {
-            label: 'Stock Inventory',
-            onClick: () => onNavigate && onNavigate('stock-movements'),
-          },
-        ]}
-      />
+
 
       {/* Drawer */}
       {isDrawerOpen && createPortal(
@@ -521,6 +513,9 @@ export const RawMaterialCategoriesView: React.FC<RawMaterialCategoriesViewProps>
           </div>
         </div>
       )}
+
+      {/* Persistent Quick Links Hub */}
+      <StockQuickLinks current="raw-material-categories" onNavigate={onNavigate} />
 
       {/* Support Modal */}
       {isSupportOpen && (

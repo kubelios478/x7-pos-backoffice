@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../../shared/QuickLaunchPanel';
+import { StockQuickLinks } from '../StockQuickLinks';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
 
 interface StockItem {
@@ -297,7 +297,6 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
           address: formAddress.trim() || undefined,
           isMainStorage: formIsMainStorage,
           isActive: formIsActive,
-          merchantId
         };
         res = await fetch(`${API_BASE}/locations`, {
           method: 'POST',
@@ -366,8 +365,9 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
       </div>
 
       {/* 2. Toolbar Multicriterio (Búsqueda + Filtro + Add Location) */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-96">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
+        {/* Fila 1: Búsqueda al 100% de ancho */}
+        <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
             search
           </span>
@@ -380,36 +380,42 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          {/* Status Filter Estandarizado (All Status, Active, Inactive) */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-          >
-            <option value="All">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Status Filter Estandarizado (All Status, Active, Inactive) */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
+            >
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
 
-          {/* Botón Añadir Ubicación (Story 6 Criterio 1) */}
-          <button
-            type="button"
-            onClick={handleOpenAddDrawer}
-            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            ADD LOCATION
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Botón Añadir Ubicación (Story 6 Criterio 1) */}
+            <button
+              type="button"
+              onClick={handleOpenAddDrawer}
+              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD LOCATION
+            </button>
 
-          <button
-            type="button"
-            onClick={() => fetchLocations()}
-            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
-            title="Reload locations"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => fetchLocations()}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+              title="Reload locations"
+              aria-label="Reload table data"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -503,7 +509,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
                           <div className={`w-1 h-8 rounded-full ${loc.isMainStorage ? 'bg-amber-500' : 'bg-[#ae001a]'}`} />
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-bold text-[#1d1c17]">{loc.name}</p>
+                              <p className={`font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>{loc.name}</p>
                               {loc.code && (
                                 <span className="font-mono text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] px-1.5 py-0.5 rounded border border-[#e8e2d8]">
                                   {loc.code}
@@ -577,40 +583,9 @@ export const LocationsView: React.FC<LocationsViewProps> = ({ onNavigate }) => {
         <span className="material-symbols-outlined text-[28px]">add</span>
       </button>
 
-      {/* Quick Launch Panel (Persistente Sprint 24) */}
+      {/* Quick Launch Panel (Persistente Sprint 25 Story 4114) */}
       <div className="mt-8">
-        <QuickLaunchPanel
-          title="Quick Launch"
-          description="Transition smoothly between raw materials master data, recipes, stock balances, movements and accounting journal entries."
-          actions={[
-            {
-              label: 'RAW MATERIALS',
-              icon: 'inventory_2',
-              onClick: () => onNavigate && onNavigate('raw-materials'),
-            },
-            {
-              label: 'RECIPES & BOM',
-              icon: 'restaurant',
-              onClick: () => onNavigate && onNavigate('recipes'),
-            },
-            {
-              label: 'STOCK LOCATIONS & LEVELS',
-              icon: 'warehouse',
-              active: true,
-              onClick: () => onNavigate && onNavigate('stock-movements'),
-            },
-            {
-              label: 'STOCK MOVEMENTS',
-              icon: 'swap_vert',
-              onClick: () => onNavigate && onNavigate('movements'),
-            },
-            {
-              label: 'JOURNAL ENTRIES',
-              icon: 'book',
-              onClick: () => onNavigate && onNavigate('journal-entries'),
-            },
-          ]}
-        />
+        <StockQuickLinks current="locations" onNavigate={onNavigate} />
       </div>
 
       <EmergencySupportModal

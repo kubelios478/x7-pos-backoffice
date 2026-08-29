@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, getStoredUser } from '../../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../../shared/QuickLaunchPanel';
+import { StockQuickLinks } from '../StockQuickLinks';
 import { EmergencySupportModal } from '../../../../modals/QuickActionModals';
 
 interface Product {
@@ -125,21 +125,40 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      // Cargar ítems de stock (soporta materias primas /v1/raw-material-stock/items e ítems comerciales /items)
-      let itemsRes = await fetch(`${API_BASE}/v1/raw-material-stock/items?limit=100`, { headers });
-      if (!itemsRes.ok || itemsRes.status === 404) {
-        const fallbackItems = await fetch(`${API_BASE}/items?limit=100`, { headers });
-        if (fallbackItems.ok) itemsRes = fallbackItems;
+      const checkObjectActive = (obj: any): boolean => {
+        if (!obj) return true;
+        if (obj.isActive === false || obj.is_active === false || obj.isActive === 0 || obj.is_active === 0) return false;
+        if (obj.isActive === 'false' || obj.is_active === 'false') return false;
+        if (typeof obj.status === 'string' && ['inactive', 'disabled', 'deactivated', 'archived', 'deleted'].includes(obj.status.toLowerCase())) return false;
+        return true;
+      };
+
+      // 1. Cargar lista maestra de ubicaciones para verificar estado activo real por ID
+      const locationsMap = new Map<string, any>();
+      const locationsNameMap = new Map<string, any>();
+      try {
+        let locationsRes = await fetch(`${API_BASE}/v1/inventory/locations`, { headers });
+        if (!locationsRes.ok || locationsRes.status === 404 || locationsRes.status === 400) {
+          const fallbackLocations = await fetch(`${API_BASE}/locations`, { headers });
+          if (fallbackLocations.ok) locationsRes = fallbackLocations;
+        }
+        if (locationsRes.ok) {
+          const lJson = await locationsRes.json();
+          const rawLocations = Array.isArray(lJson)
+            ? lJson
+            : (Array.isArray(lJson.data) ? lJson.data : (Array.isArray(lJson.items) ? lJson.items : []));
+          rawLocations.forEach((l: any) => {
+            if (l.id) locationsMap.set(String(l.id), l);
+            if (l.name) locationsNameMap.set(l.name.trim().toLowerCase(), l);
+          });
+          const activeLocations = rawLocations.filter((l: any) => checkObjectActive(l));
+          setLocations(activeLocations);
+        }
+      } catch (lErr) {
+        console.warn('Could not fetch locations list:', lErr);
       }
 
-      // Cargar ubicaciones de almacén
-      let locationsRes = await fetch(`${API_BASE}/v1/inventory/locations`, { headers });
-      if (!locationsRes.ok || locationsRes.status === 404 || locationsRes.status === 400) {
-        const fallbackLocations = await fetch(`${API_BASE}/locations`, { headers });
-        if (fallbackLocations.ok) locationsRes = fallbackLocations;
-      }
-
-      // Cargar lista maestra de materias primas para verificar estado activo actualizado
+      // 2. Cargar lista maestra de materias primas para verificar estado activo actualizado
       const suppliesMap = new Map<string, any>();
       const suppliesNameMap = new Map<string, any>();
       try {
@@ -168,13 +187,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
         console.warn('Could not fetch supplies list for status map:', sErr);
       }
 
-      const checkObjectActive = (obj: any): boolean => {
-        if (!obj) return true;
-        if (obj.isActive === false || obj.is_active === false || obj.isActive === 0 || obj.is_active === 0) return false;
-        if (obj.isActive === 'false' || obj.is_active === 'false') return false;
-        if (typeof obj.status === 'string' && ['inactive', 'disabled', 'deactivated', 'archived'].includes(obj.status.toLowerCase())) return false;
-        return true;
-      };
+      // Cargar ítems de stock
+      let itemsRes = await fetch(`${API_BASE}/v1/raw-material-stock/items?limit=100`, { headers });
+      if (!itemsRes.ok || itemsRes.status === 404) {
+        const fallbackItems = await fetch(`${API_BASE}/items?limit=100`, { headers });
+        if (fallbackItems.ok) itemsRes = fallbackItems;
+      }
 
       if (itemsRes.ok) {
         const json = await itemsRes.json();
@@ -192,7 +210,16 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
           
           const supplyIsActive = isMasterSupplyActive && isEmbeddedSupplyActive;
 
-          const locationIsActive = checkObjectActive(i.location);
+          const locObj = i.location;
+          const locId = locObj?.id || i.locationId || i.location_id;
+          const locName = locObj?.name || i.locationName || i.location_name;
+          const masterLoc = (locId ? locationsMap.get(String(locId)) : null) || (locName ? locationsNameMap.get(String(locName).trim().toLowerCase()) : null);
+          const finalLoc = masterLoc || locObj;
+
+          const isMasterLocActive = checkObjectActive(masterLoc);
+          const isEmbeddedLocActive = checkObjectActive(locObj);
+
+          const locationIsActive = isMasterLocActive && isEmbeddedLocActive;
           const selfIsActive = checkObjectActive(i);
 
           const itemIsActive = selfIsActive && supplyIsActive && locationIsActive;
@@ -204,26 +231,13 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
             allocatedQty: Number(i.allocatedQty ?? i.allocated_qty ?? 0),
             minimumQty: i.minimumQty ?? i.minimum_qty ?? null,
             supply: finalSupply,
+            location: finalLoc,
             product: i.product || (finalSupply ? { id: finalSupply.id, name: finalSupply.name, sku: finalSupply.code || finalSupply.sku } : null)
           };
         });
         setStockItems(mappedItems);
       } else {
         throw new Error('Failed to fetch stock items from server.');
-      }
-
-
-
-
-
-
-
-      if (locationsRes.ok) {
-        const json = await locationsRes.json();
-        const data = json.data || json || [];
-        const rawLocations = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
-        const activeLocations = rawLocations.filter((l: any) => l.isActive !== false);
-        setLocations(activeLocations);
       }
     } catch (err: any) {
       console.error(err);
@@ -365,9 +379,13 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       locationFilter === 'All' ||
       (item.location && String(item.location.id) === locationFilter);
 
-    // Filtro estricto: Mostrar únicamente elementos activos. Si está inactivo, se elimina de la vista.
-    const supplyIsActive = item.supply ? ((item.supply as any).isActive !== false && (item.supply as any).is_active !== false) : true;
-    const locationIsActive = item.location ? ((item.location as any).isActive !== false && (item.location as any).is_active !== false) : true;
+    // Filtro estricto: Mostrar únicamente elementos activos. Si está inactivo o la ubicación está desactivada, se elimina de la vista.
+    const supplyIsActive = item.supply
+      ? ((item.supply as any).isActive !== false && (item.supply as any).is_active !== false && (item.supply as any).status !== 'inactive' && (item.supply as any).status !== 'deleted')
+      : true;
+    const locationIsActive = item.location
+      ? ((item.location as any).isActive !== false && (item.location as any).is_active !== false && (item.location as any).status !== 'inactive' && (item.location as any).status !== 'deleted')
+      : true;
     const itemIsActive = item.isActive !== false && (item as any).is_active !== false && supplyIsActive && locationIsActive;
 
     if (!itemIsActive) {
@@ -378,7 +396,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
     // Filtro Rápido de Alerta de Stock Bajo (currentStock <= minStockThreshold)
     const minThreshold = Number(item.minimumQty ?? item.supply?.min_stock_threshold ?? 0);
-    const isLowStock = minThreshold > 0 ? item.currentQty <= minThreshold : false;
+    const isLowStock = minThreshold > 0 ? item.currentQty < minThreshold : false;
     const matchesOutOfStock = !outOfStockOnly || isLowStock;
 
     return matchesSearch && matchesLocation && matchesOutOfStock;
@@ -498,7 +516,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
     group.items.push(item);
 
     const minThreshold = Number(item.minimumQty ?? item.supply?.min_stock_threshold ?? 0);
-    if (minThreshold > 0 && currentStock <= minThreshold) {
+    if (minThreshold > 0 && currentStock < minThreshold) {
       group.hasAlert = true;
     }
   }
@@ -549,9 +567,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
       </div>
 
       {/* 2. Toolbar Multicriterio (Búsqueda + Filtros) */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        {/* Bar de Búsqueda Alfanumérica */}
-        <div className="relative w-full md:w-80">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
+        {/* Fila 1: Bar de Búsqueda Alfanumérica al 100% */}
+        <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
             search
           </span>
@@ -564,58 +582,62 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
           />
         </div>
 
-        {/* Grupo de Filtros Desplegables */}
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Selector de Ubicación Específica */}
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Selector de Ubicación Específica */}
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
+            >
+              <option value="All">All Locations</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={String(loc.id)}>
+                  {loc.name} {loc.code ? `(${loc.code})` : ''}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={locationFilter}
-            onChange={(e) => setLocationFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
-          >
-            <option value="All">All Locations</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={String(loc.id)}>
-                {loc.name} {loc.code ? `(${loc.code})` : ''}
-              </option>
-            ))}
-          </select>
+            {/* Toggle Rápido: Low Stock Only */}
+            <label className="flex items-center gap-2 cursor-pointer select-none px-3 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded">
+              <input
+                type="checkbox"
+                checked={outOfStockOnly}
+                onChange={(e) => setOutOfStockOnly(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="relative w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#ae001a]" />
+              <span className="text-xs font-bold text-[#5f5e5e] uppercase tracking-wider">
+                Low Stock Only
+              </span>
+            </label>
+          </div>
 
-          {/* Toggle Rápido: Low Stock Only */}
-          <label className="flex items-center gap-2 cursor-pointer select-none px-3 py-1.5 bg-[#fef9f1] border border-[#e8e2d8] rounded">
-            <input
-              type="checkbox"
-              checked={outOfStockOnly}
-              onChange={(e) => setOutOfStockOnly(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="relative w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#ae001a]" />
-            <span className="text-xs font-bold text-[#5f5e5e] uppercase tracking-wider">
-              Low Stock Only
-            </span>
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Botón Acción Registrar Movimiento */}
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('movements')}
+                className="bg-[#ae001a] text-white font-bold text-label-caps px-5 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">swap_vert</span>
+                RECORD MOVEMENT
+              </button>
+            )}
 
-          {/* Botón Acción Registrar Movimiento */}
-          {onNavigate && (
+            {/* Botón de Recarga */}
             <button
               type="button"
-              onClick={() => onNavigate('movements')}
-              className="bg-[#ae001a] text-white font-bold text-label-caps px-5 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+              onClick={() => fetchInitialData()}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+              title="Reload stock data"
+              aria-label="Reload table data"
             >
-              <span className="material-symbols-outlined text-[18px]">swap_vert</span>
-              RECORD MOVEMENT
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
             </button>
-          )}
-
-          {/* Botón de Recarga */}
-          <button
-            type="button"
-            onClick={() => fetchInitialData()}
-            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans"
-            title="Reload stock data"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+          </div>
         </div>
       </div>
 
@@ -727,17 +749,17 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                                 {hasMultipleSubItems ? 'chevron_right' : 'remove'}
                               </span>
                               <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-bold text-[#1d1c17]">{group.title}</p>
+                                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                  <p className="font-bold text-[#1d1c17] text-sm whitespace-nowrap">{group.title}</p>
                                   {group.code && (
-                                    <span className="font-mono text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] px-1.5 py-0.5 rounded border border-[#e8e2d8]">
+                                    <span className="font-mono text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] px-1.5 py-0.5 rounded border border-[#e8e2d8] whitespace-nowrap inline-block shrink-0">
                                       {group.code}
                                     </span>
                                   )}
                                   {/* Indicator Star Main Storage */}
                                   {group.isMainStorage && (
                                     <span
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300 whitespace-nowrap shrink-0"
                                       title="Primary Storage Hub"
                                     >
                                       ⭐ Main Storage
@@ -746,13 +768,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                                   {/* Warning Icon for Low Stock Alert */}
                                   {group.hasAlert && (
                                     <span
-                                      className="material-symbols-outlined text-amber-600 animate-pulse text-base"
+                                      className="material-symbols-outlined text-amber-600 animate-pulse text-base shrink-0"
                                       title="Low stock alert in one or more stored items"
                                     >
                                       warning
                                     </span>
                                   )}
-
                                 </div>
                                 <span className="text-secondary text-body-xs font-mono">
                                   {group.items.length} item line{group.items.length === 1 ? '' : 's'}
@@ -859,7 +880,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
                             const itemValuation = currentStock * avgCost;
 
                             const minThreshold = Number(subItem.minimumQty ?? subItem.supply?.min_stock_threshold ?? 0);
-                            const isSubItemLowStock = minThreshold > 0 ? currentStock <= minThreshold : false;
+                            const isSubItemLowStock = minThreshold > 0 ? currentStock < minThreshold : false;
 
 
                             return (
@@ -962,40 +983,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ onNaviga
 
 
 
-      {/* Quick Links Hub Persistente (Sprint 24) */}
-      <QuickLaunchPanel
-        title="Quick Launch"
-        description="Transition smoothly between raw materials master data, recipes, stock balances, movements and accounting journal entries."
-
-        actions={[
-          {
-            label: 'RAW MATERIALS',
-            icon: 'inventory_2',
-            onClick: () => onNavigate && onNavigate('raw-materials'),
-          },
-          {
-            label: 'RECIPES & BOM',
-            icon: 'restaurant',
-            onClick: () => onNavigate && onNavigate('recipes'),
-          },
-          {
-            label: 'STOCK LOCATIONS & LEVELS',
-            icon: 'warehouse',
-            active: true,
-            onClick: () => onNavigate && onNavigate('stock-movements'),
-          },
-          {
-            label: 'STOCK MOVEMENTS',
-            icon: 'swap_vert',
-            onClick: () => onNavigate && onNavigate('movements'),
-          },
-          {
-            label: 'JOURNAL ENTRIES',
-            icon: 'book',
-            onClick: () => onNavigate && onNavigate('journal-entries'),
-          },
-        ]}
-      />
+      {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
+      <StockQuickLinks current="stock-movements" onNavigate={onNavigate} />
 
       {/* Emergency Support Modal */}
 
