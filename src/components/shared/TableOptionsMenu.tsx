@@ -15,8 +15,11 @@ export interface CustomActionOption {
 export interface TableOptionsMenuProps {
   // Pestaña Acciones
   onExportCSV?: () => void;
+  exportCSVLabel?: string;
   onPrint?: () => void;
+  printLabel?: string;
   onCopySummary?: () => void;
+  copySummaryLabel?: string;
   onReload?: () => void;
   customActions?: CustomActionOption[];
 
@@ -38,19 +41,22 @@ export interface TableOptionsMenuProps {
 
 export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
   onExportCSV,
+  exportCSVLabel = 'Export Directory to CSV',
   onPrint,
+  printLabel = 'Print Directory',
   onCopySummary,
+  copySummaryLabel = 'Copy Summary to Clipboard',
   onReload,
   customActions = [],
   columns = [],
   visibleColumns = {},
   onToggleColumn,
-  rowDensity,
+  rowDensity = 'comfortable',
   onChangeDensity,
-  totalItems = 0,
+  totalItems,
   pageSize,
   onChangePageSize,
-  pageSizeOptions = [5, 10, 25, 50],
+  pageSizeOptions = [10, 25, 50, 100],
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -154,7 +160,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
                   className="w-full px-4 py-2.5 hover:bg-[#fef9f1] text-[#1c1b16] font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base text-[#ae001a]">download</span>
-                  <span>Export Directory to CSV</span>
+                  <span>{exportCSVLabel}</span>
                 </button>
               )}
 
@@ -168,7 +174,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
                   className="w-full px-4 py-2.5 hover:bg-[#fef9f1] text-[#1c1b16] font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base text-zinc-600">print</span>
-                  <span>Print Product Directory</span>
+                  <span>{printLabel}</span>
                 </button>
               )}
 
@@ -182,7 +188,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
                   className="w-full px-4 py-2.5 hover:bg-[#fef9f1] text-[#1c1b16] font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base text-amber-700">content_copy</span>
-                  <span>Copy Summary to Clipboard</span>
+                  <span>{copySummaryLabel}</span>
                 </button>
               )}
 

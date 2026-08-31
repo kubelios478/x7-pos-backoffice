@@ -857,6 +857,11 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                   document.body.removeChild(link);
                 }}
                 onPrint={() => window.print()}
+                printLabel="Print Kitchen Stations Directory"
+                onCopySummary={() => {
+                  const summaryText = `Kitchen Stations Directory Summary:\n- Total Stations: ${filteredStations.length}\n- Active Stations: ${filteredStations.filter((s) => s.is_active).length}\n- Inactive/Deleted: ${filteredStations.filter((s) => !s.is_active || s.status === 'deleted').length}`;
+                  navigator.clipboard.writeText(summaryText);
+                }}
                 onReload={fetchStations}
                 columns={[
                   { key: 'refDate', label: 'Station Ref & Date' },
