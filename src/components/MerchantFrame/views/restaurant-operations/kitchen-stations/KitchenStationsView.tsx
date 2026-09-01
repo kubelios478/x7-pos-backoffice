@@ -4,7 +4,7 @@ import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storag
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 import { AppModal } from '../../../shared/AppModal';
 import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
-import { TableOptionsMenu, NoColumnsEmptyState, TablePaginationFooter } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, NoColumnsEmptyState, TablePaginationFooter, getDensityPadding } from '../../../../shared/TableOptionsMenu';
 import { NavHubBar } from '../../../../shared/NavHubBar';
 
 export type KitchenStationType = 'HOT' | 'COLD' | 'BAR' | 'DESSERT' | 'PREP' | 'PACKING' | 'EXPO';
@@ -918,7 +918,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                     ).map((station) => {
                       const isInactive = !station.is_active;
                       const isDeleted = station.status === 'deleted';
-                      const densityPadding = rowDensity === 'compact' ? 'py-2 px-3' : rowDensity === 'spacious' ? 'py-5 px-6' : 'py-3.5 px-4';
+                      const densityPadding = getDensityPadding(rowDensity);
                       return (
                         <tr
                           key={station.id}

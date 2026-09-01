@@ -443,3 +443,15 @@ export const TablePaginationFooter: React.FC<TablePaginationFooterProps> = ({
     </div>
   );
 };
+
+export const getDensityPadding = (rowDensity: 'compact' | 'comfortable' | 'spacious' = 'comfortable'): string => {
+  switch (rowDensity) {
+    case 'compact':
+      return 'py-2 px-3';
+    case 'spacious':
+      return 'py-5 px-6';
+    case 'comfortable':
+    default:
+      return 'py-3.5 px-4';
+  }
+};
