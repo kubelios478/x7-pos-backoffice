@@ -12,6 +12,7 @@ import { OnboardingRoutes } from './pages/onboarding/OnboardingRoutes';
 import { SubscriptionStepPage } from './pages/onboarding/SubscriptionStepPage';
 import { UserStepPage } from './pages/onboarding/UserStepPage';
 import { isAuthenticated } from './lib/auth-storage';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 
 function RootRedirect() {
   return (
@@ -78,6 +79,14 @@ export default function App() {
           }
         />
         <Route
+          path="/inventory/raw-materials"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard/raw-material-categories"
           element={
             <ProtectedRoute>
@@ -87,6 +96,46 @@ export default function App() {
         />
         <Route
           path="/dashboard/recipes"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/recipes"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/stocks"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/movements"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/journal-entries"
+          element={
+            <ProtectedRoute>
+              <MerchantFrame />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/journal-lines"
           element={
             <ProtectedRoute>
               <MerchantFrame />

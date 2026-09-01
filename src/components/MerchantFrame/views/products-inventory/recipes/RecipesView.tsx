@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
-import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { StockQuickLinks } from '../stocks/StockQuickLinks';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -93,6 +93,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const [formIsActive, setFormIsActive] = useState<boolean>(true);
   const [formLines, setFormLines] = useState<{ raw_material_id: string; quantity: number }[]>([]);
   const [formDuplicateWarning, setFormDuplicateWarning] = useState<string | null>(null);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -171,6 +172,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
     setFormIsActive(true);
     setFormLines([{ raw_material_id: '', quantity: 1 }]);
     setFormDuplicateWarning(null);
+    setDrawerError(null);
     setIsDrawerOpen(true);
   };
 
@@ -191,6 +193,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
     }));
     setFormLines(mappedLines.length > 0 ? mappedLines : [{ raw_material_id: '', quantity: 1 }]);
     setFormDuplicateWarning(null);
+    setDrawerError(null);
     setIsDrawerOpen(true);
   };
 
@@ -198,6 +201,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   const handleOpenView = (rec: ProductRecipe) => {
     setSelectedRecipe(rec);
     setDrawerMode('view');
+    setDrawerError(null);
     setIsDrawerOpen(true);
   };
 
@@ -280,13 +284,15 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
   // Guardar Receta (Submit)
   const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) {
-      alert('Please provide a valid recipe formula name.');
+    setDrawerError(null);
+
+    if (!formProductId || Number(formProductId) <= 0) {
+      setDrawerError('Debes seleccionar un Producto Final (Item del Menú) para vincular esta receta de producción.');
       return;
     }
 
-    if (!formProductId || Number(formProductId) <= 0) {
-      alert('Please select a valid Finished Product to link this recipe formula to.');
+    if (!formName.trim()) {
+      setDrawerError('Por favor ingresa un nombre válido para la fórmula de la receta.');
       return;
     }
 
@@ -303,7 +309,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       });
 
     if (validLines.length === 0) {
-      alert('Please add at least one valid ingredient line with selected raw material and quantity >= 0.0001.');
+      setDrawerError('Por favor agrega al menos una materia prima válida con una cantidad mayor a 0.0001.');
       return;
     }
 
@@ -311,7 +317,7 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
     const selectedIds = validLines.map((l) => String(l.raw_material_id));
     const hasDuplicates = new Set(selectedIds).size !== selectedIds.length;
     if (hasDuplicates) {
-      alert('Duplicate raw materials detected in recipe formula lines. Each raw material must be unique.');
+      setDrawerError('Se detectaron materias primas duplicadas en la receta. Cada ingrediente debe ser único.');
       return;
     }
 
@@ -328,6 +334,14 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
         productId: Number(formProductId),
         lines: validLines,
       };
+
+      if (formName.trim()) {
+        payload.name = formName.trim();
+      }
+
+      if (formYieldQty && Number(formYieldQty) > 0) {
+        payload.yieldQuantity = Number(formYieldQty);
+      }
 
       if (formVariantId && Number(formVariantId) > 0) {
         payload.variantId = Number(formVariantId);
@@ -350,21 +364,29 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        let errMsg = 'Failed to save recipe formula.';
+        let errMsg = 'No se pudo guardar la receta.';
         if (Array.isArray(errJson.message)) {
           errMsg = errJson.message.join('\n');
         } else if (typeof errJson.message === 'string') {
-          errMsg = errJson.message;
+          if (errJson.message.includes('already exists')) {
+            errMsg = 'Ya existe una receta registrada para este producto o variante.';
+          } else if (errJson.message.includes('Validation failed')) {
+            errMsg = 'Error de validación en los datos ingresados. Verifica el producto e ingredientes.';
+          } else {
+            errMsg = errJson.message;
+          }
         } else if (typeof errJson.error === 'string') {
           errMsg = errJson.error;
         }
-        throw new Error(errMsg);
+        setDrawerError(errMsg);
+        return;
       }
 
       setIsDrawerOpen(false);
       fetchData();
     } catch (err: any) {
-      alert(err.message || 'Error saving recipe.');
+      setDrawerError(err.message || 'Error al guardar la receta.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -439,8 +461,9 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
       )}
 
       {/* Toolbar Panel (Estructura idéntica a Purchase Orders) */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-96">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
+        {/* Fila 1: Búsqueda al 100% de ancho */}
+        <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
             search
           </span>
@@ -453,48 +476,53 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          <select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
-          >
-            <option value="ALL">All Products</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.sku})
-              </option>
-            ))}
-          </select>
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
+            >
+              <option value="ALL">All Products</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.sku})
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-          >
-            <option value="ALL">All Status</option>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </div>
 
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD RECIPE
+            </button>
 
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            ADD RECIPE
-          </button>
-
-          <button
-            type="button"
-            onClick={fetchData}
-            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
-            title="Reload recipes data"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+            <button
+              type="button"
+              onClick={fetchData}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+              title="Reload recipes data"
+              aria-label="Reload table data"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -677,39 +705,8 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
 
 
 
-      {/* Hub Navegacional de Accesos Rápidos (Sprint 24 Quick Links Hub) */}
-      <QuickLaunchPanel
-        title="Quick Launch"
-        description="Transition smoothly between raw materials master data, recipes, stock balances, movements and accounting journal entries."
-        actions={[
-          {
-            label: 'RAW MATERIALS',
-            icon: 'inventory_2',
-            onClick: () => onNavigate && onNavigate('raw-materials'),
-          },
-          {
-            label: 'RECIPES & BOM',
-            icon: 'restaurant',
-            active: true,
-            onClick: () => onNavigate && onNavigate('recipes'),
-          },
-          {
-            label: 'STOCK LOCATIONS & LEVELS',
-            icon: 'warehouse',
-            onClick: () => onNavigate && onNavigate('stock-movements'),
-          },
-          {
-            label: 'STOCK MOVEMENTS',
-            icon: 'swap_vert',
-            onClick: () => onNavigate && onNavigate('movements'),
-          },
-          {
-            label: 'JOURNAL ENTRIES',
-            icon: 'book',
-            onClick: () => onNavigate && onNavigate('journal-entries'),
-          },
-        ]}
-      />
+      {/* Hub Navegacional de Accesos Rápidos (Sprint 25 Story 4114) */}
+      <StockQuickLinks current="recipes" onNavigate={onNavigate} />
 
       {/* Drawer Interactivo para Crear / Editar Recetas */}
       {isDrawerOpen &&
@@ -804,6 +801,17 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                   </div>
                 ) : (
                   <form id="recipe-form" onSubmit={handleSaveSubmit} className="flex flex-col gap-5 text-left">
+                    {/* Alerta de Error en Drawer */}
+                    {drawerError && (
+                      <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-center gap-2 font-semibold">
+                        <span className="material-symbols-outlined text-red-600 text-base">error</span>
+                        <div className="flex-1">
+                          <p className="font-bold text-red-900">No se pudo guardar la receta</p>
+                          <p className="mt-0.5 text-[#ae001a]">{drawerError}</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Alerta de Duplicados */}
                     {formDuplicateWarning && (
                       <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg flex items-center gap-2 font-semibold">
@@ -837,8 +845,15 @@ export const RecipesView: React.FC<RecipesViewProps> = ({ onNavigate }) => {
                         <select
                           value={formProductId}
                           onChange={(e) => {
-                            setFormProductId(e.target.value);
+                            const newProdId = e.target.value;
+                            setFormProductId(newProdId);
                             setFormVariantId('');
+                            if (newProdId && !formName) {
+                              const foundProd = products.find((p) => String(p.id) === String(newProdId));
+                              if (foundProd) {
+                                setFormName(`${foundProd.name} Formula`);
+                              }
+                            }
                           }}
                           disabled={drawerMode === 'edit'}
                           required

@@ -38,9 +38,12 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
               <span
                 key={action.id ?? action.label}
                 aria-current="page"
-                className="px-6 py-3 bg-[#ae001a] text-white font-bold text-label-caps border-b-4 border-white cursor-default font-sans"
+                className="px-5 py-2.5 bg-[#ae001a] text-white font-black text-label-caps border-b-4 border-white cursor-default font-poppins flex items-center gap-2 rounded shadow-md"
               >
-                {action.label}
+                {action.icon && (
+                  <span className="material-symbols-outlined text-[18px] no-underline">{action.icon}</span>
+                )}
+                <span className="underline underline-offset-4 decoration-2">{action.label}</span>
               </span>
             );
           }
@@ -54,12 +57,12 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
               onClick={action.onClick}
               className={
                 isDanger
-                  ? 'px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#930015] hover:-translate-y-0.5 transition-all duration-200 rounded flex items-center gap-2 cursor-pointer font-sans'
-                  : 'quick-launch-btn px-5 py-2.5 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:text-[#ae001a] hover:-translate-y-0.5 transition-all duration-200 rounded flex items-center gap-2 cursor-pointer font-sans'
+                  ? 'px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#930015] hover:-translate-y-0.5 transition-all duration-200 rounded flex items-center gap-2 cursor-pointer font-poppins'
+                  : 'quick-launch-btn px-5 py-2.5 bg-white text-[#1d1c17] font-bold text-label-caps border-b-4 border-[#ae001a] hover:text-[#ae001a] hover:border-[#ae001a] hover:-translate-y-0.5 transition-colors duration-200 rounded flex items-center gap-2 cursor-pointer font-poppins'
               }
             >
               {action.icon && (
-                <span className="material-symbols-outlined text-[18px]">{action.icon}</span>
+                <span className="material-symbols-outlined text-[18px] transition-colors duration-200">{action.icon}</span>
               )}
               {action.label}
             </button>

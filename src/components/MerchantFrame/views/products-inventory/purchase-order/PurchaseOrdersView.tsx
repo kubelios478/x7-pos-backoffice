@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { StockQuickLinks } from '../stocks/StockQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Supplier {
@@ -928,8 +929,9 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
       {mode === 'list' ? (
         <>
           {/* Barra de Búsqueda y Filtros */}
-          <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="relative w-full md:w-96">
+          <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
+            {/* Fila 1: Búsqueda al 100% de ancho */}
+            <div className="relative w-full">
               <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
                 search
               </span>
@@ -942,48 +944,55 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-              {/* Filtro por Proveedor */}
-              <select
-                value={supplierFilter}
-                onChange={(e) => setSupplierFilter(e.target.value)}
-                className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
-              >
-                <option value="All">All Suppliers</option>
-                {suppliers.map(sup => (
-                  <option key={sup.id} value={String(sup.id)}>{sup.name}</option>
-                ))}
-              </select>
+            {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Filtro por Proveedor */}
+                <select
+                  value={supplierFilter}
+                  onChange={(e) => setSupplierFilter(e.target.value)}
+                  className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary cursor-pointer"
+                >
+                  <option value="All">All Suppliers</option>
+                  {suppliers.map(sup => (
+                    <option key={sup.id} value={String(sup.id)}>{sup.name}</option>
+                  ))}
+                </select>
 
-              {/* Filtro por Estado */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
-              >
-                <option value="All">All Status</option>
-                <option value="DRAFT">Draft</option>
-                <option value="SENT">Sent</option>
-                <option value="PARTIALLY_RECEIVED">Partially Received</option>
-                <option value="RECEIVED">Received</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
+                {/* Filtro por Estado */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary cursor-pointer"
+                >
+                  <option value="All">All Status</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="SENT">Sent</option>
+                  <option value="PARTIALLY_RECEIVED">Partially Received</option>
+                  <option value="RECEIVED">Received</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
 
-              <button
-                onClick={handleOpenCreateMode}
-                className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-                ADD PURCHASE ORDER
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleOpenCreateMode}
+                  className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add</span>
+                  ADD PURCHASE ORDER
+                </button>
 
-              <button
-                onClick={() => fetchPurchaseOrders()}
-                className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
-                title="Reload purchase orders"
-              >
-                <span className="material-symbols-outlined text-[18px]">refresh</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => fetchPurchaseOrders()}
+                  className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+                  title="Reload purchase orders"
+                  aria-label="Reload table data"
+                >
+                  <span className="material-symbols-outlined text-[18px]">refresh</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1035,27 +1044,27 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left">
-                  <thead className="bg-[#222222] text-white border-b border-[#222222]">
+                  <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
                     <tr>
-                      <th className="px-6 py-3 text-label-caps font-bold text-white">
+                      <th className="px-6 py-3.5 text-label-caps font-bold text-[#5f5e5e]">
                         Order Reference Code
                       </th>
-                      <th className="px-6 py-3 text-label-caps font-bold text-white">
+                      <th className="px-6 py-3.5 text-label-caps font-bold text-[#5f5e5e]">
                         Supplier Entity
                       </th>
-                      <th className="px-6 py-3 text-label-caps font-bold text-white">
+                      <th className="px-6 py-3.5 text-label-caps font-bold text-[#5f5e5e]">
                         Creation Timestamp
                       </th>
-                      <th className="px-6 py-3 text-right text-label-caps font-bold text-white w-32">
+                      <th className="px-6 py-3.5 text-right text-label-caps font-bold text-[#5f5e5e] w-32">
                         Total Gross Amount
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-40">
+                      <th className="px-6 py-3.5 text-center text-label-caps font-bold text-[#5f5e5e] w-40">
                         Fulfillment Progress
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-36">
+                      <th className="px-6 py-3.5 text-center text-label-caps font-bold text-[#5f5e5e] w-36">
                         Fulfillment Status
                       </th>
-                      <th className="px-6 py-3 text-center text-label-caps font-bold text-white w-24">
+                      <th className="px-6 py-3.5 text-center text-label-caps font-bold text-[#5f5e5e] w-24">
                         Actions
                       </th>
                     </tr>
@@ -1426,30 +1435,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
         </form>
       )}
 
-      {/* Footer de Acciones Rápidas */}
-      <div className="mt-8">
-        <QuickLaunchPanel
-          description="One-click access to system settings, master suppliers, and your corporate customer directory."
-          actions={[
-            {
-              id: 'products-master',
-              label: 'PRODUCTS MASTER LIST',
-              onClick: () => onNavigate?.('products'),
-            },
-            {
-              id: 'suppliers-system',
-              label: 'SUPPLIERS SYSTEM',
-              onClick: () => onNavigate?.('suppliers'),
-            },
-            {
-              id: 'emergency-support',
-              label: 'EMERGENCY SUPPORT',
-              variant: 'danger',
-              onClick: () => setIsSupportOpen(true),
-            },
-          ]}
-        />
-      </div>
+
 
       <EmergencySupportModal
         isOpen={isSupportOpen}
@@ -1515,6 +1501,9 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({ onNaviga
           </div>
         </div>
       )}
+
+      {/* Persistent Quick Links Hub */}
+      <StockQuickLinks current="purchase-orders" onNavigate={onNavigate} />
 
       {/* Portal: Detail Drawer (Inspección de orden) */}
       {drawerPortal}

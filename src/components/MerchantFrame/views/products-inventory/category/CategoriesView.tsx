@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { CatalogQuickLinks } from '../CatalogQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
 
 interface Category {
@@ -265,8 +266,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
       </div>
 
       {/* Barra de búsqueda y Filtros */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-96">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
+        {/* Fila 1: Búsqueda al 100% de ancho */}
+        <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary">
             search
           </span>
@@ -278,32 +280,39 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
             placeholder="Search categories..."
           />
         </div>
-        <div className="flex items-center gap-4 w-full md:w-auto">
-          <select
-            aria-label="Filter by status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[140px]"
-          >
-            <option>All Status</option>
-            <option>Active</option>
-            <option>Inactive</option>
-          </select>
-          <button
-            onClick={handleOpenAddModal}
-            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            ADD CATEGORY
-          </button>
 
-          <button
-            onClick={() => fetchCategories()}
-            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans"
-            title="Reload categories"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              aria-label="Filter by status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[140px]"
+            >
+              <option>All Status</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleOpenAddModal}
+              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD CATEGORY
+            </button>
+
+            <button
+              onClick={() => fetchCategories()}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans"
+              title="Reload categories"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -392,24 +401,24 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
                       >
                         <td className={`px-6 py-4 flex items-center gap-3 ${isSub ? 'pl-12' : ''}`}>
                           {!isSub ? (
-                            <div className="w-1 h-8 bg-[#ae001a] rounded-full"></div>
+                            <div className={`w-1 h-8 rounded-full ${isInactive ? 'bg-zinc-400' : 'bg-[#ae001a]'}`}></div>
                           ) : (
                             <span className="material-symbols-outlined text-[#5f5e5e]/40">
                               subdirectory_arrow_right
                             </span>
                           )}
                           <div>
-                            <p className="font-bold text-[#1d1c17]">{cat.name}</p>
-                            <p className="text-[11px] text-secondary uppercase tracking-wider">
+                            <p className={`font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>{cat.name}</p>
+                            <p className={`text-[11px] text-secondary uppercase tracking-wider ${isInactive ? 'line-through' : ''}`}>
                               {cat.type}
                             </p>
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-mono text-[13px] text-secondary">
+                        <td className={`px-6 py-4 font-mono text-[13px] text-secondary ${isInactive ? 'line-through' : ''}`}>
                           {cat.parentId}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className="bg-[#ece8e0] px-3 py-1 rounded text-body-sm font-bold text-[#1d1c17]">
+                          <span className={`bg-[#ece8e0] px-3 py-1 rounded text-body-sm font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>
                             {cat.linkedProducts}
                           </span>
                         </td>
@@ -543,34 +552,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
         </div>,
         document.body
       )}
-      <div className="mt-8">
-        <QuickLaunchPanel
-          description="One-click access to system settings, master suppliers, and your corporate customer directory."
-          actions={[
-            {
-              id: 'products-master',
-              label: 'PRODUCTS MASTER LIST',
-              onClick: () => onNavigate?.('products'),
-            },
-            {
-              id: 'discounts-control',
-              label: 'DISCOUNTS CONTROL',
-              onClick: () => onNavigate?.('discounts'),
-            },
-            {
-              id: 'tax-configs',
-              label: 'TAX CONFIGURATIONS',
-              onClick: () => onNavigate?.('company-configurations'),
-            },
-            {
-              id: 'emergency-support',
-              label: 'EMERGENCY SUPPORT',
-              variant: 'danger',
-              onClick: () => setIsSupportOpen(true),
-            },
-          ]}
-        />
-      </div>
+
 
       <EmergencySupportModal
         isOpen={isSupportOpen}
@@ -646,6 +628,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({ onNavigate }) =>
           </div>
         </div>
       )}
+
+      {/* Persistent Quick Links Hub */}
+      <CatalogQuickLinks current="categories" onNavigate={onNavigate} />
     </div>
   );
 };

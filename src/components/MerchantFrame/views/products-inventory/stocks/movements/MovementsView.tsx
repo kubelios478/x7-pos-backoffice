@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { StockQuickLinks } from '../StockQuickLinks';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession, getStoredUser } from '../../../../../../lib/auth-storage';
 
@@ -8,6 +9,7 @@ interface StockItemOption {
   product?: { name: string; sku?: string } | null;
   supply?: { id: number; name: string; code?: string } | null;
   location?: { id: number; name: string } | null;
+  weightedAverageUnitCost?: string | number | null;
 }
 
 interface Movement {
@@ -17,15 +19,19 @@ interface Movement {
     currentQty: number;
     product?: { name: string } | null;
     supply?: { name: string } | null;
+    location?: { id: number; name: string } | null;
   } | null;
   quantity: number;
   type: string;
   movementType?: string | null;
+  unitCost?: string | number | null;
   reference: string;
   reason: string;
   createdBy?: string | null;
   sourceLocationId?: number | null;
+  sourceLocationName?: string | null;
   destinationLocationId?: number | null;
+  destinationLocationName?: string | null;
   createdAt: string;
 }
 
@@ -33,7 +39,7 @@ interface MovementsViewProps {
   onNavigate?: (view: string) => void;
 }
 
-export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNavigate }) => {
+export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate }) => {
 
   const [movements, setMovements] = useState<Movement[]>([]);
   const [stockItemOptions, setStockItemOptions] = useState<StockItemOption[]>([]);
@@ -58,6 +64,8 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
   const [formDestinationLocationId, setFormDestinationLocationId] = useState<string>('');
   const [formMovementType, setFormMovementType] = useState<string>('PURCHASE_RECEIPT');
   const [formQuantity, setFormQuantity] = useState<number>(1);
+  const [formActualCount, setFormActualCount] = useState<string>('');
+  const [formUnitCost, setFormUnitCost] = useState<string>('');
   const [formReference, setFormReference] = useState<string>('');
   const [formReason, setFormReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -155,7 +163,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
       }
 
       if (!res.ok) {
-        throw new Error('Error al consultar el registro de movimientos');
+        throw new Error('Error loading stock movements log');
       }
 
       const json = await res.json();
@@ -175,12 +183,62 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
 
   const handleRecordMovementSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
     if (!formSupplyId || !formLocationId) {
       setSubmitError('Please select both a Raw Material and a Storage Location.');
       return;
     }
+
+    // ADJUSTMENT: validate actual count is provided
+    if (formMovementType === 'ADJUSTMENT' && formActualCount === '') {
+      setSubmitError('Please enter the new actual physical count for this adjustment.');
+      return;
+    }
+
+    const selectedStockItem = availableStockItems.find(i => String(i.location?.id) === formLocationId);
+    if (!selectedStockItem) {
+      setSubmitError('Stock item record not found for the selected location.');
+      return;
+    }
+
+    const sourceLocationName = selectedStockItem.location?.name || 'Source Location';
+
+    // 1. Guard de validación para Transferencias
+    if (formMovementType === 'TRANSFER') {
+      if (!formDestinationLocationId) {
+        setSubmitError('Please select a destination storage location.');
+        return;
+      }
+      if (formLocationId === formDestinationLocationId) {
+        setSubmitError('Source and destination locations must be different.');
+        return;
+      }
+    }
+
+    // 2. Insufficient Stock Guard para Transferencias, Mermas (WASTE) y Salidas
+    const isDecrement = formMovementType === 'TRANSFER' || formMovementType === 'WASTE' || formMovementType === 'POS_DEPLETION';
+    const currentStockQty = Number(selectedStockItem.currentQty || 0);
+
+    // For ADJUSTMENT, calculate delta from actual count
+    let adjustmentDelta = 0;
+    if (formMovementType === 'ADJUSTMENT') {
+      const actualCount = Number(formActualCount);
+      adjustmentDelta = actualCount - currentStockQty;
+      if (adjustmentDelta < 0 && Math.abs(adjustmentDelta) > currentStockQty) {
+        setSubmitError(`Insufficient stock in [${sourceLocationName}]. Available: ${currentStockQty}, Requested adjustment would set to: ${actualCount}.`);
+        return;
+      }
+    }
+
+    if (isDecrement) {
+      if (currentStockQty < Number(formQuantity)) {
+        setSubmitError(`Insufficient stock in [${sourceLocationName}]. Available: ${currentStockQty}, Requested: ${formQuantity}.`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
-    setSubmitError(null);
 
     try {
       const token = getAccessToken();
@@ -189,22 +247,38 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       };
 
-      const selectedStockItem = availableStockItems.find(i => String(i.location?.id) === formLocationId);
-      if (!selectedStockItem) {
-        throw new Error('Stock item record not found for the selected location');
+      const isEntry = ['PURCHASE_RECEIPT', 'IN', 'RETURN'].includes(formMovementType);
+
+      // For ADJUSTMENT, send the absolute delta and direction
+      let finalQuantity = Number(formQuantity);
+      let finalType: string = isEntry ? 'IN' : 'OUT';
+
+      if (formMovementType === 'ADJUSTMENT') {
+        finalQuantity = Math.abs(adjustmentDelta);
+        finalType = adjustmentDelta >= 0 ? 'IN' : 'OUT';
       }
 
-      const isEntry = ['PURCHASE_RECEIPT', 'IN', 'RETURN'].includes(formMovementType);
+      // For PURCHASE_RECEIPT, the location is the destination (where stock arrives)
+      const sourceLocId = formMovementType === 'PURCHASE_RECEIPT'
+        ? null
+        : Number(formLocationId);
+      const destLocId = formMovementType === 'PURCHASE_RECEIPT'
+        ? Number(formLocationId)
+        : (formMovementType === 'TRANSFER' && formDestinationLocationId ? Number(formDestinationLocationId) : null);
 
       const payload = {
         stockItemId: selectedStockItem.id,
-        quantity: Number(formQuantity),
-        type: isEntry ? 'IN' : 'OUT',
+        supplyId: Number(formSupplyId),
+        quantity: finalQuantity,
+        type: finalType,
         movementType: formMovementType,
+        unitCost: formUnitCost ? Number(formUnitCost) : undefined,
         reference: formReference || `MANUAL-${Date.now()}`,
-        reason: formReason || 'Manual inventory operation log',
-        sourceLocationId: Number(formLocationId),
-        destinationLocationId: formMovementType === 'TRANSFER' && formDestinationLocationId ? Number(formDestinationLocationId) : null,
+        reason: formReason || (formMovementType === 'ADJUSTMENT'
+          ? `Physical count adjustment: ${currentStockQty} -> ${formActualCount} (delta: ${adjustmentDelta >= 0 ? '+' : ''}${adjustmentDelta})`
+          : 'Manual inventory operation log'),
+        sourceLocationId: sourceLocId,
+        destinationLocationId: destLocId,
         createdBy: currentUser?.email || 'Inventory Clerk'
       };
 
@@ -216,7 +290,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || 'Failed to record movement');
+        throw new Error(errJson.message || 'Failed to record stock movement');
       }
 
       setIsRecordOpen(false);
@@ -224,9 +298,14 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
       setFormLocationId('');
       setFormDestinationLocationId('');
       setFormQuantity(1);
+      setFormActualCount('');
+      setFormUnitCost('');
       setFormReference('');
       setFormReason('');
-      fetchMovements();
+      await Promise.all([
+        fetchMovements(),
+        fetchStockItems()
+      ]);
     } catch (err: any) {
       setSubmitError(err.message || 'Error creating movement record');
     } finally {
@@ -236,7 +315,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
 
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in text-left font-sans">
+    <div className="flex flex-col gap-6 animate-fade-in text-left font-sans pb-24">
       {/* Título de Sección */}
       <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm">
         <h2 className="text-[#ae001a] font-bold text-heading-lg tracking-wider uppercase font-sans">
@@ -256,7 +335,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
           </span>
           <input
             type="text"
-            placeholder="Search stock movements by ingredient name..."
+            placeholder="Search stock movements by raw material name..."
             value={itemNameFilter}
             onChange={(e) => {
               setItemNameFilter(e.target.value);
@@ -266,79 +345,84 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
           />
         </div>
 
-        {/* Fila 2: Filtros + Acciones + Reload (Todos alineados a la izquierda) */}
-        <div className="flex flex-wrap items-center justify-start gap-3 pt-1">
-          {/* Movement Type Filter */}
-          <select
-            value={movementTypeFilter}
-            onChange={(e) => {
-              setMovementTypeFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer font-bold"
-          >
-            <option value="ALL">All Movement Types</option>
-            <option value="PURCHASE_RECEIPT">PURCHASE_RECEIPT</option>
-            <option value="POS_DEPLETION">POS_DEPLETION</option>
-            <option value="ADJUSTMENT">ADJUSTMENT</option>
-            <option value="WASTE">WASTE</option>
-            <option value="TRANSFER">TRANSFER</option>
-          </select>
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Movement Type Filter */}
+            <select
+              value={movementTypeFilter}
+              onChange={(e) => {
+                setMovementTypeFilter(e.target.value);
+                setPage(1);
+              }}
+              className="px-4 py-2 bg-[#fef9f1] border border-[#e8e2d8] rounded text-body-sm font-sans outline-none focus:border-[#ae001a] text-secondary cursor-pointer font-bold"
+            >
+              <option value="ALL">All Movement Types</option>
+              <option value="PURCHASE_RECEIPT">PURCHASE_RECEIPT</option>
+              <option value="POS_DEPLETION">POS_DEPLETION</option>
+              <option value="ADJUSTMENT">ADJUSTMENT</option>
+              <option value="WASTE">WASTE</option>
+              <option value="TRANSFER">TRANSFER</option>
+            </select>
 
-          {itemIdFilter && (
-            <div className="flex items-center gap-2 bg-[#fef9f1] border border-[#ae001a]/30 px-3 py-2 rounded text-xs font-bold text-[#ae001a] whitespace-nowrap">
-              <span>Filtered by Item #{itemIdFilter}</span>
-              <button
-                onClick={() => {
-                  setItemIdFilter('');
-                  window.history.pushState({}, '', '/inventory/movements');
-                  setPage(1);
-                }}
-                className="text-zinc-500 hover:text-[#ae001a] font-bold cursor-pointer ml-1 text-sm"
-                title="Clear item filter"
-              >
-                ✕
-              </button>
-            </div>
-          )}
+            {itemIdFilter && (
+              <div className="flex items-center gap-2 bg-[#fef9f1] border border-[#ae001a]/30 px-3 py-2 rounded text-xs font-bold text-[#ae001a] whitespace-nowrap">
+                <span>Filtered by Item #{itemIdFilter}</span>
+                <button
+                  onClick={() => {
+                    setItemIdFilter('');
+                    window.history.pushState({}, '', '/inventory/movements');
+                    setPage(1);
+                  }}
+                  className="text-zinc-500 hover:text-[#ae001a] font-bold cursor-pointer ml-1 text-sm"
+                  title="Clear item filter"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
 
-          <button
-            onClick={() => setIsRecordOpen(true)}
-            className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            <span>RECORD MOVEMENT</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setIsRecordOpen(true)}
+              className="px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#8e0015] transition-all duration-200 cursor-pointer text-xs rounded flex items-center gap-1.5 shadow-sm"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              <span>NEW MOVEMENT / ADJUSTMENT</span>
+            </button>
 
-          <button
-            onClick={() => {
-              window.history.pushState({}, '', '/inventory/stocks');
-              _onNavigate?.('stock-movements');
-            }}
-            className="px-4 py-2.5 bg-[#ece8e0] text-[#1c1b16] font-bold text-label-caps hover:bg-[#dcd7cd] transition-all duration-200 cursor-pointer text-xs rounded border border-[#e8e2d8]"
-          >
-            Back to Stock Ledger
-          </button>
+            <button
+              type="button"
+              onClick={() => fetchMovements()}
+              className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
+              title="Reload table data"
+              aria-label="Reload table data"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
 
-          <button
-            onClick={() => fetchMovements()}
-            className="p-2 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-[#5f5e5e] hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer font-sans h-[38px] w-[38px]"
-            title="Reload movements data"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
-
+            <button
+              onClick={() => {
+                window.history.pushState({}, '', '/inventory/stocks');
+                if (onNavigate) onNavigate('stock-movements');
+              }}
+              className="px-4 py-2.5 bg-[#ece8e0] text-[#1c1b16] font-bold text-label-caps hover:bg-[#dcd7cd] transition-all duration-200 cursor-pointer text-xs rounded border border-[#e8e2d8]"
+            >
+              Back to Stock Ledger
+            </button>
+          </div>
         </div>
       </div>
 
 
 
-      {/* Tabla */}
+      {/* Tabla Audit Trail Grid */}
       {isLoading ? (
         <div className="py-20 text-center bg-white border border-[#e8e2d8] rounded">
           <span className="material-symbols-outlined text-secondary animate-spin text-4xl">sync</span>
           <p className="text-secondary text-body-sm mt-3 uppercase tracking-wider font-bold">
-            Loading activity history...
+            Loading stock movement ledger...
           </p>
         </div>
       ) : error ? (
@@ -349,58 +433,88 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
         <div className="bg-white border border-[#e8e2d8] rounded shadow-sm overflow-hidden">
           <div className="p-4 bg-[#222222] flex justify-between items-center">
             <span className="text-label-caps font-bold text-white uppercase tracking-wider">
-              STOCK MOVEMENTS LEDGER
+              STOCK MOVEMENTS LEDGER AUDIT TRAIL
             </span>
             <span className="material-symbols-outlined text-white text-sm cursor-pointer select-none">
               more_vert
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
+            <table className="w-full border-collapse text-left text-xs font-sans">
               <thead className="bg-[#222222] text-white border-b border-[#222222]">
                 <tr>
-                  <th className="px-6 py-3 text-label-caps font-bold text-white">Date & Time</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-white text-center">Movement Type</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-white text-right">Quantity</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-white">Operator / Creator</th>
-                  <th className="px-6 py-3 text-label-caps font-bold text-white">Reference & Reason</th>
+                  <th className="px-4 py-3 font-bold uppercase">Movement ID</th>
+                  <th className="px-4 py-3 font-bold uppercase">Date & Time</th>
+                  <th className="px-4 py-3 font-bold uppercase text-center">Movement Type</th>
+                  <th className="px-4 py-3 font-bold uppercase">Raw Material</th>
+                  <th className="px-4 py-3 font-bold uppercase">Source Location</th>
+                  <th className="px-4 py-3 font-bold uppercase">Destination Location</th>
+                  <th className="px-4 py-3 font-bold uppercase text-right">Quantity</th>
+                  <th className="px-4 py-3 font-bold uppercase text-right">Unit Cost</th>
+                  <th className="px-4 py-3 font-bold uppercase text-right">Total Value</th>
+                  <th className="px-4 py-3 font-bold uppercase">Operator</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-[#e8e2d8]">
                 {movements.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-secondary italic bg-white">
-                      No stock movements found.
+                    <td colSpan={10} className="px-6 py-8 text-center text-secondary italic bg-white">
+                      No stock movements recorded in ledger.
                     </td>
                   </tr>
                 ) : (
                   movements.map((mv) => {
                     const typeCode = mv.movementType || mv.type;
-                    const isEntry = ['IN', 'PURCHASE_RECEIPT', 'RETURN', 'PURCHASE_ENTRY'].includes(typeCode);
+                    const isEntry = mv.type === 'IN' || ['PURCHASE_RECEIPT', 'RETURN', 'PURCHASE_ENTRY'].includes(mv.movementType || '');
+                    const materialName = mv.item?.supply?.name || mv.item?.product?.name || 'Raw Material';
+                    const srcLocName = mv.sourceLocationName || mv.item?.location?.name || '—';
+                    const destLocName = mv.destinationLocationName || '—';
+                    const costVal = Number(mv.unitCost || 0);
+                    const totalVal = costVal * Number(mv.quantity || 0);
+
                     return (
                       <tr key={mv.id} className="hover:bg-[#f8f3eb] transition-colors">
-                        <td className="px-6 py-4 text-body-sm text-zinc-800">
-                          {new Date(mv.createdAt).toLocaleDateString()} • {new Date(mv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <td className="px-4 py-3 font-mono font-bold text-zinc-900">
+                          MV-#{mv.id}
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded uppercase ${
-                            isEntry ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-700 border border-red-200'
+                        <td className="px-4 py-3 text-zinc-700 whitespace-nowrap">
+                          {new Date(mv.createdAt).toLocaleDateString()} {new Date(mv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                            typeCode === 'ADJUSTMENT' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                            typeCode === 'TRANSFER' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                            typeCode === 'WASTE' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                            typeCode === 'POS_DEPLETION' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                            isEntry ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 
+                            'bg-red-100 text-red-800 border border-red-300'
                           }`}>
                             {typeCode}
                           </span>
                         </td>
-                        <td className={`px-6 py-4 font-mono font-bold text-right text-sm ${
-                          isEntry ? 'text-emerald-600' : 'text-red-600'
+                        <td className="px-4 py-3 font-semibold text-zinc-900">
+                          {materialName}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-700">
+                          {srcLocName}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-700">
+                          {destLocName}
+                        </td>
+                        <td className={`px-4 py-3 font-mono font-bold text-right ${
+                          isEntry ? 'text-emerald-700' : 'text-red-700'
                         }`}>
                           {isEntry ? '+' : '-'}{mv.quantity}
                         </td>
-                        <td className="px-6 py-4 text-body-xs font-semibold text-zinc-700">
-                          {mv.createdBy || 'System'}
+                        <td className="px-4 py-3 font-mono text-right text-zinc-700">
+                          {costVal > 0 ? `$${costVal.toFixed(2)}` : '—'}
                         </td>
-                        <td className="px-6 py-4 text-body-sm text-zinc-800">
-                          <span className="font-bold block text-zinc-900">{mv.reference || 'N/A'}</span>
-                          <span className="text-secondary text-xs">{mv.reason || 'N/A'}</span>
+                        <td className="px-4 py-3 font-mono font-bold text-right text-zinc-900">
+                          {totalVal > 0 ? `$${totalVal.toFixed(2)}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 font-medium">
+                          {mv.createdBy || 'System'}
                         </td>
                       </tr>
                     );
@@ -443,10 +557,10 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
             <div className="p-6 border-b border-zinc-200 bg-white flex justify-between items-center">
               <div>
                 <h3 className="text-heading-md font-bold text-[#ae001a] uppercase tracking-wider font-sans">
-                  Record Stock Movement
+                  New Movement / Adjustment
                 </h3>
                 <p className="text-secondary text-body-xs mt-1 font-sans">
-                  Manual inventory entry, waste, or adjustment log
+                  Record stock receipts, transfers, waste, or physical audit adjustments
                 </p>
               </div>
               <button onClick={() => setIsRecordOpen(false)} className="p-1.5 text-secondary hover:text-[#ae001a]">
@@ -455,9 +569,9 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
             </div>
 
             <form onSubmit={handleRecordMovementSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* Seleccionar Materia Prima (Sólo Nombre Limpio) */}
+              {/* Seleccionar Materia Prima */}
               <div className="space-y-1.5">
-                <label className="block text-body-xs font-bold text-zinc-700">Select Raw Material</label>
+                <label className="block text-body-xs font-bold text-zinc-700">Select Raw Material *</label>
                 <select
                   value={formSupplyId}
                   onChange={(e) => {
@@ -476,9 +590,13 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
                 </select>
               </div>
 
-              {/* Seleccionar Ubicación / Almacén */}
+              {/* Seleccionar Ubicación / Almacén Origen */}
               <div className="space-y-1.5">
-                <label className="block text-body-xs font-bold text-zinc-700">Select Storage Location</label>
+                <label className="block text-body-xs font-bold text-zinc-700">
+                  {formMovementType === 'TRANSFER' ? 'Source Storage Location *'
+                    : formMovementType === 'PURCHASE_RECEIPT' ? 'Destination Storage Location *'
+                    : 'Storage Location *'}
+                </label>
                 <select
                   value={formLocationId}
                   onChange={(e) => setFormLocationId(e.target.value)}
@@ -500,7 +618,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
               {/* Ubicación Destino si es TRANSFER */}
               {formMovementType === 'TRANSFER' && (
                 <div className="space-y-1.5">
-                  <label className="block text-body-xs font-bold text-zinc-700">Select Destination Location</label>
+                  <label className="block text-body-xs font-bold text-zinc-700">Destination Storage Location *</label>
                   <select
                     value={formDestinationLocationId}
                     onChange={(e) => setFormDestinationLocationId(e.target.value)}
@@ -517,10 +635,9 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
                 </div>
               )}
 
-
               {/* Movement Type */}
               <div className="space-y-1.5">
-                <label className="block text-body-xs font-bold text-zinc-700">Movement Type</label>
+                <label className="block text-body-xs font-bold text-zinc-700">Movement Type *</label>
                 <select
                   value={formMovementType}
                   onChange={(e) => setFormMovementType(e.target.value)}
@@ -529,29 +646,79 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
                   <option value="PURCHASE_RECEIPT">PURCHASE_RECEIPT (Entrada por Compra)</option>
                   <option value="WASTE">WASTE (Mermas / Desperdicio)</option>
                   <option value="TRANSFER">TRANSFER (Transferencia entre Almacenes)</option>
-                  <option value="ADJUSTMENT">ADJUSTMENT (Ajuste Manual de Inventario)</option>
+                  <option value="ADJUSTMENT">ADJUSTMENT (Ajuste Fisico de Inventario)</option>
+                  <option value="POS_DEPLETION">POS_DEPLETION (Salida por Venta POS)</option>
                 </select>
               </div>
 
-              {/* Quantity */}
+              {/* Unit Cost */}
               <div className="space-y-1.5">
-                <label className="block text-body-xs font-bold text-zinc-700">Quantity Units</label>
+                <label className="block text-body-xs font-bold text-zinc-700">
+                  Unit Cost ($ USD) {formMovementType === 'PURCHASE_RECEIPT' ? '*' : '(Optional)'}
+                </label>
                 <input
                   type="number"
-                  min="1"
-                  value={formQuantity}
-                  onChange={(e) => setFormQuantity(Number(e.target.value))}
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 12.50"
+                  value={formUnitCost}
+                  onChange={(e) => setFormUnitCost(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-zinc-200 rounded text-body-sm font-sans outline-none focus:border-[#ae001a]"
-                  required
+                  required={formMovementType === 'PURCHASE_RECEIPT'}
                 />
               </div>
 
+              {/* Quantity / Actual Count (conditional on ADJUSTMENT) */}
+              {formMovementType === 'ADJUSTMENT' ? (
+                <div className="space-y-1.5">
+                  <label className="block text-body-xs font-bold text-zinc-700">New Actual Physical Count *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Enter the counted quantity..."
+                    value={formActualCount}
+                    onChange={(e) => setFormActualCount(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-zinc-200 rounded text-body-sm font-sans outline-none focus:border-[#ae001a]"
+                    required
+                  />
+                  {formActualCount !== '' && formLocationId && (() => {
+                    const si = availableStockItems.find(i => String(i.location?.id) === formLocationId);
+                    const cur = Number(si?.currentQty || 0);
+                    const actual = Number(formActualCount);
+                    const delta = actual - cur;
+                    return (
+                      <div className={`p-2 rounded text-body-xs font-bold border ${
+                        delta === 0 ? 'bg-zinc-50 text-zinc-500 border-zinc-200'
+                          : delta > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        Current System Stock: {cur} &rarr; New Count: {actual}
+                        {' '}(Delta: {delta >= 0 ? '+' : ''}{delta})
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="block text-body-xs font-bold text-zinc-700">Quantity Units *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formQuantity}
+                    onChange={(e) => setFormQuantity(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-white border border-zinc-200 rounded text-body-sm font-sans outline-none focus:border-[#ae001a]"
+                    required
+                  />
+                </div>
+              )}
+
               {/* Reference */}
               <div className="space-y-1.5">
-                <label className="block text-body-xs font-bold text-zinc-700">Reference (e.g. Invoice/Ticket #)</label>
+                <label className="block text-body-xs font-bold text-zinc-700">Reference (e.g. Invoice / PO / Ticket #)</label>
                 <input
                   type="text"
-                  placeholder="e.g. INV-2026-001"
+                  placeholder="e.g. PO-2026-88"
                   value={formReference}
                   onChange={(e) => setFormReference(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-zinc-200 rounded text-body-sm font-sans outline-none focus:border-[#ae001a]"
@@ -560,7 +727,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
 
               {/* Reason */}
               <div className="space-y-1.5">
-                <label className="block text-body-xs font-bold text-zinc-700">Reason / Notes</label>
+                <label className="block text-body-xs font-bold text-zinc-700">Reason / Operation Notes *</label>
                 <textarea
                   placeholder="Enter reason for this movement..."
                   value={formReason}
@@ -580,16 +747,16 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
                 <button
                   type="button"
                   onClick={() => setIsRecordOpen(false)}
-                  className="flex-1 py-2 border border-zinc-200 rounded text-zinc-700 text-body-sm font-bold"
+                  className="flex-1 py-2 border border-zinc-200 rounded text-zinc-700 text-body-sm font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 bg-[#ae001a] text-white rounded text-body-sm font-bold hover:bg-[#8e0015] disabled:opacity-50"
+                  className="flex-1 py-2 bg-[#ae001a] text-white rounded text-body-sm font-bold hover:bg-[#8e0015] disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? 'Saving...' : 'Record Movement'}
+                  {isSubmitting ? 'Saving...' : 'Submit Movement'}
                 </button>
               </div>
             </form>
@@ -597,7 +764,9 @@ export const MovementsView: React.FC<MovementsViewProps> = ({ onNavigate: _onNav
         </div>,
         document.body
       )}
+
+      {/* Quick Links Hub Persistente (Sprint 25 Story 4114) */}
+      <StockQuickLinks current="movements" onNavigate={onNavigate} />
     </div>
   );
 };
-
