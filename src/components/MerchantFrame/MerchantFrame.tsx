@@ -55,6 +55,11 @@ import { CashShiftsView } from './views/restaurant-operations/CashShiftsView';
 import { CashTransactionsView } from './views/restaurant-operations/CashTransactionsView';
 import { CashMovementsView } from './views/restaurant-operations/CashMovementsView';
 import { CashDrawerHistoryView } from './views/restaurant-operations/CashDrawerHistoryView';
+import { CollaboratorPersonalScheduleView } from './views/restaurant-operations/CollaboratorPersonalScheduleView';
+import { ShiftAssignmentView } from './views/restaurant-operations/ShiftAssignmentView';
+import { TimeClockKioskView } from './views/restaurant-operations/TimeClockKioskView';
+import { TimeEntriesView } from './views/restaurant-operations/TimeEntriesView';
+import { TipsLedgerView } from './views/restaurant-operations/TipsLedgerView';
 import { LedgerAccountsView } from './views/financial-engine/LedgerAccountsView';
 import { JournalEntriesView } from './views/financial-engine/JournalEntriesView';
 import { JournalEntryLinesView } from './views/financial-engine/JournalEntryLinesView';
@@ -162,6 +167,33 @@ export const MerchantFrame: React.FC = () => {
     } else if (path === '/dashboard/company-configurations') {
       setActiveCategory('platformsaas');
       setActiveTab('company-configurations');
+    } else if (path === '/staff-management/schedule/roster') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('staff-roster');
+    } else if (path === '/staff-management/schedule/assignments') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('shift-assignment');
+    } else if (path === '/staff-management/schedule/daily' || path === '/staff-management/schedule/timeline') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('daily-timeline');
+    } else if (path === '/staff-management/schedule/shifts' || path === '/staff-management/schedule/scheduler') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('shifts');
+    } else if (path === '/staff-management/schedule/swaps') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('staff-swaps');
+    } else if (path === '/staff-management/attendance/ledger') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('collaborators-time-entries');
+    } else if (path === '/staff-management/schedule/me') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('my-schedule');
+    } else if (path === '/staff-management/attendance/kiosk') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('time-clock-kiosk');
+    } else if (path === '/store-operations/tips-ledger' || path === '/tips/ledger') {
+      setActiveCategory('restaurant-operations');
+      setActiveTab('tips-ledger');
     } else if (path === '/dashboard') {
       const stateTab = location.state?.activeTab;
       const stateCategory = location.state?.activeCategory;
@@ -317,6 +349,17 @@ export const MerchantFrame: React.FC = () => {
       fetchNotifications();
     }
   }, [isAuthLocked, refreshTrigger]);
+
+  useEffect(() => {
+    const handleOpenKiosk = () => setActiveTab('time-clock-kiosk');
+    const handleOpenDash = () => setActiveTab('dashboard');
+    window.addEventListener('open-time-clock-kiosk', handleOpenKiosk);
+    window.addEventListener('open-dashboard', handleOpenDash);
+    return () => {
+      window.removeEventListener('open-time-clock-kiosk', handleOpenKiosk);
+      window.removeEventListener('open-dashboard', handleOpenDash);
+    };
+  }, []);
 
 
 
@@ -530,6 +573,93 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'cash-drawer-history') {
       return <CashDrawerHistoryView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    const handleStaffNavigate = (target: string) => {
+      if (target === '/staff-management/schedule/me' || target === 'my-schedule' || target === 'personal-schedule') {
+        setActiveTab('my-schedule');
+        try { navigate('/staff-management/schedule/me'); } catch (e) {}
+      } else if (target === '/staff-management/schedule/roster' || target === 'staff-roster' || target === 'roster') {
+        setActiveTab('staff-roster');
+        try { navigate('/staff-management/schedule/roster'); } catch (e) {}
+      } else if (target === '/staff-management/schedule/assignments' || target === 'shift-assignment' || target === 'assignments') {
+        setActiveTab('shift-assignment');
+        try { navigate('/staff-management/schedule/assignments'); } catch (e) {}
+      } else if (target === '/staff-management/schedule/daily' || target === '/staff-management/schedule/timeline' || target === 'daily-timeline' || target === 'daily') {
+        setActiveTab('daily-timeline');
+        try { navigate('/staff-management/schedule/daily'); } catch (e) {}
+      } else if (target === '/staff-management/schedule/shifts' || target === '/staff-management/schedule/scheduler' || target === 'shifts' || target === 'scheduler') {
+        setActiveTab('shifts');
+        try { navigate('/staff-management/schedule/shifts'); } catch (e) {}
+      } else if (target === '/staff-management/schedule/swaps' || target === 'staff-swaps' || target === 'swaps') {
+        setActiveTab('staff-swaps');
+        try { navigate('/staff-management/schedule/swaps'); } catch (e) {}
+      } else if (target === '/staff-management/attendance/ledger' || target === 'collaborators-time-entries' || target === 'time-entries' || target === 'ledger') {
+        setActiveTab('collaborators-time-entries');
+        try { navigate('/staff-management/attendance/ledger'); } catch (e) {}
+      } else if (target === '/staff-management/attendance/kiosk' || target === 'time-clock' || target === 'time-clock-kiosk' || target === 'kiosk') {
+        setActiveTab('time-clock-kiosk');
+        try { navigate('/staff-management/attendance/kiosk'); } catch (e) {}
+      } else if (
+        target === '/store-operations/tips-ledger' ||
+        target === '/tips/ledger' ||
+        target === 'tips-ledger' ||
+        target === 'tips' ||
+        target === '/tips/allocations' ||
+        target === 'tips-allocations' ||
+        target === '/tips/settlements' ||
+        target === 'tips-settlements'
+      ) {
+        setActiveCategory('restaurant-operations');
+        setActiveTab('tips-ledger');
+        try { navigate('/store-operations/tips-ledger'); } catch (e) {}
+      } else if (
+        target === '/tips/pools' ||
+        target === 'tips-pools' ||
+        target === '/tips/pool-members' ||
+        target === 'tips-pool-members' ||
+        target === 'merchant-tips-rules'
+      ) {
+        setActiveTab('merchant-tips-rules');
+        try { navigate('/dashboard', { state: { activeTab: 'merchant-tips-rules', activeCategory: 'core' } }); } catch (e) {}
+      } else if (target === '/tips/cash-movements' || target === 'tips-cash-movements' || target === 'cash-movements') {
+        setActiveTab('cash-movements');
+        try { navigate('/dashboard', { state: { activeTab: 'cash-movements', activeCategory: 'finance' } }); } catch (e) {}
+      } else {
+        setActiveTab(target);
+      }
+    };
+
+    if (activeTab === 'my-schedule' || activeTab === 'personal-schedule' || activeTab === '/staff-management/schedule/me') {
+      return <CollaboratorPersonalScheduleView onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'daily-timeline' || activeTab === 'daily' || activeTab === '/staff-management/schedule/daily') {
+      return <ShiftAssignmentView initialViewMode="daily" onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'shifts' || activeTab === 'shift-assignment' || activeTab === 'assignments' || activeTab === 'scheduler') {
+      return <ShiftAssignmentView initialViewMode="weekly" onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'staff-roster' || activeTab === 'roster') {
+      return <ShiftAssignmentView initialViewMode="monthly" onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'staff-swaps' || activeTab === 'swaps') {
+      return <ShiftAssignmentView initialViewMode="swaps" onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'collaborators-time-entries' || activeTab === 'time-entries' || activeTab === 'attendance-ledger' || activeTab === 'ledger') {
+      return <TimeEntriesView onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'tips-ledger' || activeTab === 'tips' || activeTab === '/store-operations/tips-ledger') {
+      return <TipsLedgerView onNavigate={handleStaffNavigate} />;
+    }
+
+    if (activeTab === 'time-clock' || activeTab === 'time-clock-kiosk' || activeTab === 'kiosk') {
+      return <TimeClockKioskView onClose={() => setActiveTab('dashboard')} onNavigate={handleStaffNavigate} />;
     }
 
     if (activeTab === 'ledger-accounts') {
