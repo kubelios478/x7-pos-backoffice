@@ -231,6 +231,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       }
     } catch (err) {
       console.warn('API error fetching kitchen stations:', err);
+      setError('Failed to fetch kitchen stations from backend API.');
       setStations([]);
     } finally {
       setIsLoading(false);
