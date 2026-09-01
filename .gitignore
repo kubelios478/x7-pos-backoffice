@@ -30,7 +30,13 @@ dist-ssr
 
 /docs
 /.superpowers
+/.agent
+/.cursor
 /.worktrees
+*.diff
+*.bak
+*.tmp
+
 # Playwright
 /test-results/
 /playwright-report/

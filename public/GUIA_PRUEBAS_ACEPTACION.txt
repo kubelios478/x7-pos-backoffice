@@ -1,0 +1,162 @@
+================================================================================
+GUIA DETALLADA DE PRUEBAS DE ACEPTACION - MÓDULO DE INVENTARIOS Y MATERIAS PRIMAS
+================================================================================
+
+Este documento contiene el plan de pruebas detallado paso a paso para auditar y
+validar la correcta implementación de las historias de usuario asociadas al ciclo
+de vida de materias primas, recetas, control de stock, compras y recepción.
+
+--------------------------------------------------------------------------------
+PRUEBA 1: GESTIÓN DE CATEGORÍAS DE MATERIAS PRIMAS (Ticket X7P-4072)
+--------------------------------------------------------------------------------
+Objetivo: Validar que las categorías de materias primas estén correctamente 
+aisladas de las categorías de venta comercial en el POS.
+
+Pasos:
+  1. Inicia sesión en el backoffice.
+  2. Navega a "Categorías de Materias Primas" (GET /api/v1/raw-material-categories).
+  3. Crea una nueva categoría específica para insumos (ej. Nombre: "Lácteos",
+     is_active: true).
+  4. Intenta crear un producto de venta comercial (ej. "Café Latte"). Al asignar
+     la categoría del producto, verifica que la categoría "Lácteos" no esté
+     disponible para selección en el catálogo comercial.
+  5. Asocia un ingrediente nuevo (ej. "Leche Entera") a la categoría "Lácteos".
+  6. Intenta eliminar la categoría "Lácteos". El sistema debe retornar un error
+     de validación (BadRequestException) informando que la categoría está en uso
+     o aplicar soft-delete impidiendo su eliminación física.
+
+--------------------------------------------------------------------------------
+PRUEBA 2: MASTER DATA DE INSUMOS & DRAWER OPERACIONAL (Tickets X7P-4063 / X7P-4106)
+--------------------------------------------------------------------------------
+Objetivo: Validar el flujo CRUD de materias primas, validaciones de conversión
+de unidades en drawers, y auto-generación de metadatos (UUID y timestamps).
+
+Pasos:
+  1. En el menú lateral, ingresa a "Raw Materials Workspace" (vía URL directa: 
+     /dashboard/raw-materials o haciendo clic en la barra del shell).
+  2. Haz clic en el botón superior derecho "ADD RAW MATERIAL" para abrir el Drawer.
+  3. Prueba de integridad de conversión:
+     - Ingresa Nombre: "Café en grano".
+     - Unidad de compra: "KG".
+     - Unidad de consumo: "GRAM".
+     - Ingresa Factor de Conversión: 0 o -50.
+     - Intenta guardar la materia prima. El sistema debe bloquear la acción del
+       formulario y desplegar una alerta visual indicando que el factor de
+       conversión debe ser estrictamente mayor a 0.
+  4. Ingresa un Factor de Conversión correcto: 1000.
+  5. Completa los campos opcionales: SKU ("RAW-CAF-01"), Costo inicial ($15.00),
+     Stock mínimo (5) y Descripción. Presiona "SAVE SUPPLY".
+  6. En la tabla, haz clic sobre el insumo "Café en grano". Verifica que se abra 
+     el drawer lateral en modo "Detalle / Lectura" con los campos bloqueados, 
+     mostrando el UUID generado y los timestamps de creación y edición.
+
+--------------------------------------------------------------------------------
+PRUEBA 3: INTEGRIDAD DE FÓRMULA DE RECETAS (Ticket X7P-4065)
+--------------------------------------------------------------------------------
+Objetivo: Probar la correcta asociación de recetas y cálculo de costo teórico.
+
+Pasos:
+  1. Navega a la sección de productos comerciales y selecciona un producto (ej. 
+     "Espresso").
+  2. Entra a configurar su receta (BOM).
+  3. Agrega una línea de ingrediente seleccionando la materia prima creada en la 
+     prueba anterior ("Café en grano").
+  4. Especifica la cantidad a consumir en unidades de consumo (ej. 15 gramos).
+  5. Guarda la receta y valida en la interfaz que el costo teórico del producto
+     se recalcule automáticamente multiplicando el costo unitario de compra del 
+     insumo por el consumo de la receta (dividido por el factor de conversión).
+
+--------------------------------------------------------------------------------
+PRUEBA 4: ALMACENAMIENTO MULTI-UBICACIÓN Y ALERTAS MÍNIMAS (Ticket X7P-4067)
+--------------------------------------------------------------------------------
+Objetivo: Verificar el control de stock por ubicación física y alertas visuales.
+
+Pasos:
+  1. Ve a "Raw Materials Workspace".
+  2. Identifica las columnas "Min Stock Threshold" y "Quantity".
+  3. Verifica que la cantidad del ingrediente "Café en grano" esté en 0.
+  4. Observa que al lado del balance de stock actual se renderiza un icono visual 
+     de peligro/advertencia parpadeante (Warning en rojo) debido a que la cantidad 
+     está por debajo del mínimo configurado (5 unidades).
+
+--------------------------------------------------------------------------------
+PRUEBA 5: AJUSTES MANUALES Y DECREMENTO POR POS (Tickets X7P-4042 / X7P-4068)
+--------------------------------------------------------------------------------
+Objetivo: Probar la autorización de ajustes y decremento dinámico por venta.
+
+Pasos:
+  1. Autorización:
+     - Inicia sesión con un usuario con rol de empleado (sin permisos de Admin).
+     - Intenta presionar el botón "Adjust Stock" en el workspace. Verifica que la 
+       acción esté bloqueada (botón deshabilitado en gris con un tooltip).
+     - Inicia sesión como Merchant Administrator. Haz clic en "Adjust Stock", 
+       asigna una cantidad absoluta de 10 unidades a "Café en grano" y guarda.
+  2. POS Depletion:
+     - Realiza una venta en el POS del producto comercial "Espresso".
+     - Completa y paga la orden.
+     - Regresa al "Raw Materials Workspace" y al listado de movimientos de stock.
+     - Verifica que la cantidad del insumo "Café en grano" se haya reducido 
+       automáticamente (restando 15 gramos del stock ajustado previamente).
+     - Confirma en el historial de movimientos la creación automática de un 
+       registro del tipo "POS_DEPLETION".
+
+--------------------------------------------------------------------------------
+PRUEBA 6: LIFECYCLE DE ÓRDENES DE COMPRA (Ticket X7P-4070)
+--------------------------------------------------------------------------------
+Objetivo: Verificar el ciclo de vida de compras enfocado a insumos de proveedores.
+
+Pasos:
+  1. Navega a la sección de "Purchase Orders" en el backoffice.
+  2. Haz clic en crear una nueva orden de compra. El sistema debe inicializarla 
+     en estado "DRAFT".
+  3. Selecciona un proveedor y agrega materias primas a los ítems, indicando 
+     cantidad ordenada, costo de unidad de compra e impuestos. El total de la 
+     orden de compra debe calcularse de forma automática.
+  4. Cambia el estado de la orden de compra de "DRAFT" a "SENT".
+  5. Intenta modificar la cantidad de ítems de la orden. Como el estado es "SENT" 
+     (o "DRAFT"), la modificación debe permitirse.
+  6. Pasa la orden a un estado de recepción o completado. Intenta cambiar de nuevo 
+     las cantidades. El sistema debe bloquear la actualización de detalles 
+     arrojando un error de regla de negocio (BadRequestException).
+
+--------------------------------------------------------------------------------
+PRUEBA 7: RECEPCIÓN Y AUTO-INFLOW DE COMPRAS (Ticket X7P-4071)
+--------------------------------------------------------------------------------
+Objetivo: Probar recepción total y parcial, recálculo de WACC y costo de insumo.
+
+Pasos:
+  1. En una orden de compra activa en estado "SENT" (con 10 unidades de "Café"):
+     - Envía una recepción parcial de 4 unidades mediante el endpoint 
+       POST /api/v1/purchase-orders/{id}/receive.
+     - Valida que el estatus de la orden de compra cambie a "PARTIALLY_RECEIVED".
+     - Ve al almacén correspondiente y confirma que el stock físico de la materia 
+       prima haya incrementado por las 4 unidades.
+     - Verifica que el costo promedio ponderado (WACC) se recalcule en el ítem de 
+       inventario y que el último costo de compra (LPC) en Supplies se actualice.
+     - Revisa en el historial de movimientos la creación del log "PURCHASE_RECEIPT".
+  2. Envía la recepción de las 6 unidades restantes de la orden.
+     - Valida que el estatus de la orden cambie a "RECEIVED" (o "COMPLETED").
+     - Confirma la entrada de stock restante en el almacén.
+
+--------------------------------------------------------------------------------
+PRUEBA 8: CONVERSION IMPACT & SOFT STATUS (Criterios de Aceptación Adicionales)
+--------------------------------------------------------------------------------
+Objetivo: Validar los modales de advertencia al editar insumos en uso y la 
+desactivación segura (soft status).
+
+Pasos:
+  1. Abre el "Raw Materials Workspace" y edita el insumo "Café en grano" (el cual 
+     ya asociaste a una receta de Espresso en la Prueba 3).
+  2. Modifica la unidad de compra a "BOX" o cambia el factor de conversión a 500.
+  3. Presiona "SAVE SUPPLY". El frontend debe detener el envío y desplegar el 
+     modal de confirmación de impacto: "Conversion Impact Warning...".
+  4. Haz clic en "Go Back" para cancelar el cambio, o en "Confirm Modification" 
+     para forzar la actualización en base de datos.
+  5. Prueba de desactivación segura:
+     - Para el insumo "Café en grano", haz clic en el botón de desactivar 
+       (Estatus / Status Toggle).
+     - El modal te informará que desactivar la materia prima previene su selección 
+       en nuevas recetas pero mantendrá los registros de costos históricos.
+     - Confirma la desactivación. El estatus del insumo debe cambiar a "Inactive" 
+       con un badge gris, desapareciendo del listado activo por defecto.
+================================================================================

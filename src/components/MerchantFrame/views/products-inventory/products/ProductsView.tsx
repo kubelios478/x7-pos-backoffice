@@ -2,7 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storage';
 import { QuickLaunchPanel } from '../../../shared/QuickLaunchPanel';
+import { CatalogQuickLinks } from '../CatalogQuickLinks';
 import { EmergencySupportModal } from '../../../modals/QuickActionModals';
+import { TableOptionsMenu } from '../../../../shared/TableOptionsMenu';
 
 interface Category {
   id: number;
@@ -72,6 +74,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
   const [isToggling, setIsToggling] = useState<boolean>(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
+
+  // Estado para Personalizar Columnas
+  const [visibleColumns, setVisibleColumns] = useState<{
+    category: boolean;
+    basePrice: boolean;
+    status: boolean;
+    actions: boolean;
+  }>({
+    category: true,
+    basePrice: true,
+    status: true,
+    actions: true,
+  });
+
+  // Estado para Densidad de la Fila (Padding) y Límite de Registros Visibles
+  const [rowDensity, setRowDensity] = useState<'compact' | 'comfortable' | 'spacious'>('comfortable');
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Auto-scroll al inicio al montar la vista
   useEffect(() => {
@@ -299,6 +318,60 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
     }
   };
 
+  // Funciones de acción del menú de opciones (more_vert)
+  const handleExportCSV = () => {
+    setIsOptionsMenuOpen(false);
+    if (!filteredProducts || filteredProducts.length === 0) return;
+    const headers = ['ID', 'Name', 'Category', 'Base Price', 'SKU', 'Status'];
+    const rows = filteredProducts.map(p => [
+      p.id,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${(p.category?.name || 'Uncategorized').replace(/"/g, '""')}"`,
+      p.basePrice,
+      `"${(p.sku || '').replace(/"/g, '""')}"`,
+      p.isActive !== false ? 'Active' : 'Inactive'
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `products_directory_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintTable = () => {
+    setIsOptionsMenuOpen(false);
+    window.print();
+  };
+
+  const handleCopySummary = () => {
+    setIsOptionsMenuOpen(false);
+    const text = filteredProducts
+      .map(p => `#${p.id} ${p.name} (${p.category?.name || 'Uncategorized'}) - $${p.basePrice} [${p.isActive !== false ? 'ACTIVE' : 'INACTIVE'}]`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
+    alert('Products directory list copied to clipboard!');
+  };
+
+  // Helpers para tabla dinámica
+  const displayedProducts = pageSize === 9999 ? filteredProducts : filteredProducts.slice(0, pageSize);
+  
+  const activeColSpan = 2 + (visibleColumns.category ? 1 : 0) + (visibleColumns.basePrice ? 1 : 0) + (visibleColumns.status ? 1 : 0) + (visibleColumns.actions ? 1 : 0);
+
+  const getDensityPadding = () => {
+    switch (rowDensity) {
+      case 'compact':
+        return 'py-2 px-6 text-xs';
+      case 'spacious':
+        return 'py-5 px-6 text-base';
+      case 'comfortable':
+      default:
+        return 'py-3.5 px-6 text-sm';
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in text-left font-sans">
       <div ref={topRef} />
@@ -316,8 +389,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
       </div>
 
       {/* Barra de Búsqueda y Filtros */}
-      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="relative w-full md:w-96">
+      <div className="bg-white border border-[#e8e2d8] p-6 rounded shadow-sm flex flex-col gap-4">
+        {/* Fila 1: Búsqueda al 100% de ancho */}
+        <div className="relative w-full">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-sans">
             search
           </span>
@@ -329,61 +403,89 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
             placeholder="Search products by name or SKU..."
           />
         </div>
-        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          {/* Filtro por Categoría */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary"
-          >
-            <option>All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.name}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
 
-          {/* Filtro por Estado */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary"
-          >
-            <option>All Status</option>
-            <option>Active</option>
-            <option>Inactive</option>
-          </select>
+        {/* Fila 2: Filtros a la izquierda, Botones a la derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Filtro por Categoría */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[150px] font-sans text-secondary"
+            >
+              <option>All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
 
-          <button
-            onClick={handleOpenAddModal}
-            className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            ADD PRODUCT
-          </button>
+            {/* Filtro por Estado */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-[#fef9f1] rounded border border-[#e8e2d8] text-body-sm focus:border-[#ae001a] focus:ring-1 focus:ring-[#ae001a] outline-none min-w-[130px] font-sans text-secondary"
+            >
+              <option>All Status</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </div>
 
-          <button
-            onClick={() => fetchAllData()}
-            className="p-2.5 bg-white border border-[#e8e2d8] rounded hover:bg-[#fef9f1] text-secondary hover:text-[#ae001a] transition-all flex items-center justify-center cursor-pointer"
-            title="Reload products"
-          >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleOpenAddModal}
+              className="bg-[#ae001a] text-white font-bold text-label-caps px-6 py-2.5 rounded hover:bg-[#d2272f] transition-colors flex items-center gap-2 font-sans cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              ADD PRODUCT
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Tabla del Directorio de Productos */}
       <div className="bg-white border border-[#e8e2d8] overflow-hidden rounded shadow-sm">
-        {/* Header Oscuro #222222 */}
-        <div className="p-4 bg-[#222222] flex justify-between items-center">
-          <span className="text-label-caps font-bold text-white uppercase tracking-wider font-sans">
-            PRODUCT DIRECTORY
-          </span>
-          <span className="material-symbols-outlined text-white text-sm cursor-pointer">
-            more_vert
-          </span>
+        {/* Header Oscuro #222222 con Menú Desplegable Completo de Opciones */}
+        <div className="p-4 bg-[#222222] flex justify-between items-center relative">
+          <div className="flex items-center gap-3">
+            <span className="text-label-caps font-bold text-white uppercase tracking-wider font-sans">
+              PRODUCT DIRECTORY
+            </span>
+            <span className="text-[10px] font-mono font-bold bg-[#333333] text-zinc-300 px-2 py-0.5 rounded border border-[#444444]">
+              {displayedProducts.length === filteredProducts.length
+                ? `${filteredProducts.length} product${filteredProducts.length === 1 ? '' : 's'}`
+                : `${displayedProducts.length} / ${filteredProducts.length} products`}
+            </span>
+          </div>
+
+          <TableOptionsMenu
+            onExportCSV={handleExportCSV}
+            onPrint={handlePrintTable}
+            onCopySummary={handleCopySummary}
+            onReload={fetchAllData}
+            columns={[
+              { key: 'category', label: 'Category' },
+              { key: 'basePrice', label: 'Base Price' },
+              { key: 'status', label: 'Status' },
+              { key: 'actions', label: 'Actions' },
+            ]}
+            visibleColumns={visibleColumns}
+            onToggleColumn={(key) =>
+              setVisibleColumns((prev) => ({
+                ...prev,
+                [key]: !prev[key as keyof typeof visibleColumns],
+              }))
+            }
+            rowDensity={rowDensity}
+            onChangeDensity={setRowDensity}
+            totalItems={filteredProducts.length}
+            pageSize={pageSize}
+            onChangePageSize={setPageSize}
+          />
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead className="bg-[#ece8e0] border-b border-[#e8e2d8]">
@@ -392,24 +494,32 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                 <th className="px-6 py-3 text-left text-label-caps font-bold text-text-muted font-sans">
                   Product Name
                 </th>
-                <th className="px-6 py-3 text-left text-label-caps font-bold text-text-muted font-sans">
-                  Category
-                </th>
-                <th className="px-6 py-3 text-right text-label-caps font-bold text-text-muted font-sans">
-                  Base Price
-                </th>
-                <th className="px-6 py-3 text-center text-label-caps font-bold text-text-muted font-sans">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-center text-label-caps font-bold text-text-muted font-sans">
-                  Actions
-                </th>
+                {visibleColumns.category && (
+                  <th className="px-6 py-3 text-left text-label-caps font-bold text-text-muted font-sans">
+                    Category
+                  </th>
+                )}
+                {visibleColumns.basePrice && (
+                  <th className="px-6 py-3 text-right text-label-caps font-bold text-text-muted font-sans">
+                    Base Price
+                  </th>
+                )}
+                {visibleColumns.status && (
+                  <th className="px-6 py-3 text-center text-label-caps font-bold text-text-muted font-sans">
+                    Status
+                  </th>
+                )}
+                {visibleColumns.actions && (
+                  <th className="px-6 py-3 text-center text-label-caps font-bold text-text-muted font-sans">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e8e2d8]">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-secondary font-sans bg-white">
+                  <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
                     <span className="material-symbols-outlined animate-spin text-[#ae001a] text-4xl block mb-2 mx-auto select-none">
                       sync
                     </span>
@@ -418,7 +528,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-[#ba1a1a] font-sans bg-white">
+                  <td colSpan={activeColSpan} className="px-6 py-12 text-center text-[#ba1a1a] font-sans bg-white">
                     <span className="material-symbols-outlined text-[#ba1a1a] text-4xl block mb-2 mx-auto select-none">
                       error
                     </span>
@@ -433,7 +543,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-secondary font-sans bg-white">
+                  <td colSpan={activeColSpan} className="px-6 py-12 text-center text-secondary font-sans bg-white">
                     <span className="material-symbols-outlined text-secondary text-5xl block mb-2 mx-auto select-none">
                       inventory_2
                     </span>
@@ -441,14 +551,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                     <p className="text-xs text-[#666666] mt-1">Click 'Add Product' to start building your catalog.</p>
                   </td>
                 </tr>
-              ) : filteredProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-secondary italic font-sans bg-white">
-                    No products match the selected filters.
-                  </td>
-                </tr>
               ) : (
-                filteredProducts.map((product) => {
+                filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={activeColSpan} className="px-6 py-8 text-center text-secondary italic font-sans bg-white">
+                      No products match the selected filters.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedProducts.map((product) => {
                     const isInactive = !product.isActive;
                     const isExpanded = !!expandedProducts[product.id];
                     return (
@@ -472,57 +583,71 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                               </span>
                             </button>
                           </td>
-                          <td className="px-6 py-4 flex items-center gap-3">
-                            <div className="w-1 h-8 bg-[#ae001a] rounded-full"></div>
+                          <td className={`${getDensityPadding()} flex items-center gap-3`}>
+                            <div className={`w-1 h-8 rounded-full ${isInactive ? 'bg-zinc-400' : 'bg-[#ae001a]'}`}></div>
                             <div>
-                              <p className="font-bold text-[#1d1c17] font-sans">{product.name}</p>
-                              <p className="text-[11px] text-secondary font-mono tracking-wider">
+                              <p className={`font-bold text-[#1d1c17] font-sans ${isInactive ? 'line-through' : ''}`}>
+                                {product.name}
+                              </p>
+                              <p className={`text-[11px] text-secondary font-mono tracking-wider ${isInactive ? 'line-through' : ''}`}>
                                 SKU: {product.sku}
                               </p>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-body-md text-[#1d1c17] font-sans">
-                            {product.category ? product.category.name : 'No Category'}
-                          </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold text-[#1d1c17]">
-                            {formatPrice(product.basePrice)}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span
-                              className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans ${
-                                product.isActive
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-zinc-200 text-[#5f5e5e]'
-                              }`}
-                            >
-                              {product.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <div className="flex justify-center gap-3">
-                              <button
-                                onClick={() => handleOpenEditModal(product)}
-                                className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                title="Editar producto"
+
+                          {visibleColumns.category && (
+                            <td className={`${getDensityPadding()} text-body-md text-[#1d1c17] font-sans ${isInactive ? 'line-through' : ''}`}>
+                              {product.category ? product.category.name : 'No Category'}
+                            </td>
+                          )}
+
+                          {visibleColumns.basePrice && (
+                            <td className={`${getDensityPadding()} text-right font-mono font-bold text-[#1d1c17] ${isInactive ? 'line-through' : ''}`}>
+                              {formatPrice(product.basePrice)}
+                            </td>
+                          )}
+
+                          {visibleColumns.status && (
+                            <td className={`${getDensityPadding()} text-center`}>
+                              <span
+                                className={`text-[10px] px-2.5 py-0.5 font-bold rounded uppercase font-sans ${
+                                  product.isActive
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-zinc-200 text-[#5f5e5e]'
+                                }`}
                               >
-                                <span className="material-symbols-outlined text-[20px]">edit</span>
-                              </button>
-                              <button
-                                onClick={() => void handleToggleActive(product)}
-                                className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
-                                title={product.isActive ? "Desactivar producto" : "Activar producto"}
-                              >
-                                <span className="material-symbols-outlined text-[20px]">
-                                  {product.isActive ? 'block' : 'check_circle_outline'}
-                                </span>
-                              </button>
-                            </div>
-                          </td>
+                                {product.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                          )}
+
+                          {visibleColumns.actions && (
+                            <td className={`${getDensityPadding()} text-center`}>
+                              <div className="flex justify-center gap-3">
+                                <button
+                                  onClick={() => handleOpenEditModal(product)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title="Editar producto"
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => void handleToggleActive(product)}
+                                  className="p-1 text-[#5f5e5e] hover:text-[#ae001a] transition-colors cursor-pointer"
+                                  title={product.isActive ? "Desactivar producto" : "Activar producto"}
+                                >
+                                  <span className="material-symbols-outlined text-[20px]">
+                                    {product.isActive ? 'block' : 'check_circle_outline'}
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
 
                         {isExpanded && (
                           <tr className="bg-[#fcfbfa]/80">
-                            <td colSpan={6} className="px-12 py-5 border-t border-b border-[#e8e2d8]/60">
+                            <td colSpan={activeColSpan} className="px-12 py-5 border-t border-b border-[#e8e2d8]/60">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {/* Variantes */}
                                 <div className="space-y-3">
@@ -555,7 +680,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                                     </div>
                                   ) : (
                                     <p className="text-xs text-secondary italic pl-1 font-sans">
-                                      No variants linked to this product.
+                                      No variants defined for this item.
                                     </p>
                                   )}
                                 </div>
@@ -572,7 +697,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                                         <thead className="bg-[#ece8e0]/40">
                                           <tr className="border-b border-[#e8e2d8]">
                                             <th className="px-3 py-2 text-left font-bold text-secondary">Name</th>
-                                            <th className="px-3 py-2 text-right font-bold text-secondary">Delta Price</th>
+                                            <th className="px-3 py-2 text-right font-bold text-secondary">Extra Cost</th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-[#e8e2d8]/50">
@@ -600,11 +725,59 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
                       </React.Fragment>
                     );
                   })
-                )}
-              </tbody>
-            </table>
-          </div>
+                )
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {/* Pie de Tabla (Sólo si hay paginación activa) */}
+        {filteredProducts.length > pageSize && pageSize < 9999 && (
+          <div className="p-4 bg-[#fcfbfa] border-t border-[#e8e2d8] flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-secondary font-sans">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-[#1d1c17]">
+                Showing {displayedProducts.length} of {filteredProducts.length} products
+              </span>
+              <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-300 font-mono font-bold">
+                Limit: {pageSize} per page
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-[#5f5e5e] uppercase tracking-wider">Rows per page:</span>
+              <div className="flex items-center gap-1 bg-[#f2ede5] p-0.5 rounded border border-[#e8e2d8]">
+                {[5, 10, 25, 50]
+                  .filter(t => t <= filteredProducts.length || t === 5)
+                  .map((limit) => (
+                    <button
+                      key={limit}
+                      type="button"
+                      onClick={() => setPageSize(limit)}
+                      className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                        pageSize === limit && pageSize < filteredProducts.length
+                          ? 'bg-white text-[#ae001a] shadow-xs border border-[#e8e2d8]'
+                          : 'text-[#5f5e5e] hover:text-[#1c1b16]'
+                      }`}
+                    >
+                      {limit}
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  onClick={() => setPageSize(9999)}
+                  className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                    pageSize >= filteredProducts.length || pageSize === 9999
+                      ? 'bg-white text-[#ae001a] shadow-xs border border-[#e8e2d8]'
+                      : 'text-[#5f5e5e] hover:text-[#1c1b16]'
+                  }`}
+                >
+                  All
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Modal Interactivo de Add / Edit Product */}
       {isModalOpen && createPortal(
@@ -706,34 +879,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
         </div>,
         document.body
       )}
-      <div className="mt-8">
-        <QuickLaunchPanel
-          description="One-click access to system settings, master suppliers, and your corporate customer directory."
-          actions={[
-            {
-              id: 'inventory-stock',
-              label: 'INVENTORY STOCK',
-              onClick: () => onNavigate?.('items'),
-            },
-            {
-              id: 'suppliers-directory',
-              label: 'SUPPLIERS DIRECTORY',
-              onClick: () => onNavigate?.('suppliers'),
-            },
-            {
-              id: 'sales-analytics',
-              label: 'SALES ANALYTICS',
-              onClick: () => onNavigate?.('reports'),
-            },
-            {
-              id: 'emergency-support',
-              label: 'EMERGENCY SUPPORT',
-              variant: 'danger',
-              onClick: () => setIsSupportOpen(true),
-            },
-          ]}
-        />
-      </div>
+
 
       <EmergencySupportModal
         isOpen={isSupportOpen}
@@ -809,6 +955,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Persistent Quick Links Hub */}
+      <CatalogQuickLinks current="products" onNavigate={onNavigate} />
     </div>
   );
 };

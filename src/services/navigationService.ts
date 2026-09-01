@@ -119,9 +119,21 @@ export const navigationService = {
         })
         .filter((app): app is NavApplication => app !== null);
 
-      // Asignar características a sus aplicaciones
+      // Asignar características a sus aplicaciones (Kitchen Display System abre el hub kds-dashboard)
       applications.forEach(app => {
-        app.features = features.filter(f => f.applicationId === app.id);
+        if (app.id === 'kitchen-display-system') {
+          app.features = [
+            {
+              id: 'kds-dashboard',
+              name: 'KDS Operational Command Hub',
+              applicationId: 'kitchen-display-system',
+              planId: 1,
+              isSaaS: false,
+            }
+          ];
+        } else {
+          app.features = features.filter(f => f.applicationId === app.id);
+        }
       });
 
       // Regla de Supresión de Padres Vacíos (Nivel 2: Aplicaciones sin características válidas)

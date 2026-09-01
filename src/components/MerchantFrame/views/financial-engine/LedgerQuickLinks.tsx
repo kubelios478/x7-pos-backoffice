@@ -10,13 +10,14 @@ interface LedgerQuickLinkAnchor {
   key: string;
   label: string;
   target: string;
+  icon: string;
 }
 
 const LEDGER_QUICK_LINKS: LedgerQuickLinkAnchor[] = [
-  { key: 'chart-of-accounts', label: 'CHART OF ACCOUNTS', target: 'ledger-accounts' },
-  { key: 'journal-entries', label: 'JOURNAL ENTRIES', target: 'journal-entries' },
-  { key: 'journal-line-items', label: 'JOURNAL LINE ITEMS', target: 'journal-entries-lines' },
-  { key: 'tax-rules', label: 'TAX RULES CONFIGURATION', target: 'merchant-tax-rules' },
+  { key: 'chart-of-accounts', label: 'CHART OF ACCOUNTS', target: 'ledger-accounts', icon: 'account_tree' },
+  { key: 'journal-entries', label: 'JOURNAL ENTRIES', target: 'journal-entries', icon: 'menu_book' },
+  { key: 'journal-line-items', label: 'JOURNAL LINE ITEMS', target: 'journal-entries-lines', icon: 'format_list_bulleted' },
+  { key: 'tax-rules', label: 'TAX RULES CONFIGURATION', target: 'merchant-tax-rules', icon: 'percent' },
 ];
 
 export const LedgerQuickLinks: React.FC<LedgerQuickLinksProps> = ({
@@ -26,6 +27,7 @@ export const LedgerQuickLinks: React.FC<LedgerQuickLinksProps> = ({
   const actions: QuickLaunchAction[] = LEDGER_QUICK_LINKS.map((anchor) => ({
     id: anchor.key,
     label: anchor.label,
+    icon: anchor.icon,
     active: anchor.target === current,
     onClick: () => onNavigate?.(anchor.target),
   }));

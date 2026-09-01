@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { isAuthenticated } from '../lib/auth-storage';
+import { ErrorBoundary } from './shared/ErrorBoundary';
 import type { ReactNode } from 'react';
 
 interface ProtectedRouteProps {
@@ -11,5 +12,5 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate replace to="/login" />;
   }
 
-  return children;
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }
