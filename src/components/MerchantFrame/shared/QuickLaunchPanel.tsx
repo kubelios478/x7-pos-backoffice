@@ -7,6 +7,7 @@ export type QuickLaunchAction = {
   onClick: () => void;
   variant?: 'default' | 'danger';
   active?: boolean;
+  icon?: string;
 };
 
 type QuickLaunchPanelProps = {
@@ -54,7 +55,10 @@ export const QuickLaunchPanel: React.FC<QuickLaunchPanelProps> = ({
             <button
               key={action.id ?? action.label}
               type="button"
-              onClick={action.onClick}
+              onClick={(e) => {
+                e.preventDefault();
+                action.onClick();
+              }}
               className={
                 isDanger
                   ? 'px-5 py-2.5 bg-[#ae001a] text-white font-bold text-label-caps hover:bg-[#930015] hover:-translate-y-0.5 transition-all duration-200 rounded flex items-center gap-2 cursor-pointer font-poppins'

@@ -75,7 +75,6 @@ cash-drawers|Cash Drawers sessions|cash-drawers|2|0
 cash-shifts|Cash Shifts sessions|cash-drawers|2|0
 cash-transactions|Cash Transactions journal|cash-drawers|2|0
 cash-movements|Cash Movements directory|cash-drawers|2|0
-shift-assignment|Shift Assignment matrix|shifts|2|0
 shifts|Shifts Scheduler|shifts|2|0
 tip-movements|Tip movements history|tips|2|0
 tip-pool-members|Tip pool members layout|tips|2|0
