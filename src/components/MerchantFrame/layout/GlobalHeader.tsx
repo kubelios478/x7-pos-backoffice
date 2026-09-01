@@ -507,6 +507,18 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               )}
             </div>
 
+            {/* Time Clock Terminal Utility */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('open-time-clock-kiosk'));
+              }}
+              className="px-2.5 py-1 bg-[#d51f2c] hover:bg-[#b01a24] text-white rounded font-bold text-xs uppercase flex items-center gap-1 transition-colors duration-200 shadow-sm"
+              title="Time Clock Terminal (Reloj de Fichaje)"
+            >
+              <span className="material-symbols-outlined text-base">punch_clock</span>
+              <span className="hidden lg:inline text-[11px]">Time Clock</span>
+            </button>
+
             {/* Help Center Utility */}
             <a
               href="/support/help-center"
