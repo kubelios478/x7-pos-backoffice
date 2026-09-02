@@ -36,7 +36,8 @@ export interface TableOptionsMenuProps {
   totalItems?: number;
   pageSize?: number;
   onChangePageSize?: (size: number) => void;
-  pageSizeOptions?: number[];
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
@@ -56,7 +57,9 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
   totalItems,
   pageSize,
   onChangePageSize,
-  pageSizeOptions = [10, 25, 50, 100],
+  pageSizeOptions = [5, 10, 15, 20, 25, 50, 100],
+  currentPage = 1,
+  onPageChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
   // Determinar pestañas disponibles
   const hasActionsTab = !!(onExportCSV || onPrint || onCopySummary || onReload || customActions.length > 0);
   const hasColumnsTab = columns.length > 0 && !!onToggleColumn;
-  const hasDensityTab = !!(onChangeDensity || (onChangePageSize && totalItems > 5));
+  const hasDensityTab = !!(onChangeDensity || onChangePageSize);
 
   const [activeTab, setActiveTab] = useState<'tools' | 'columns' | 'density'>(
     hasActionsTab ? 'tools' : hasColumnsTab ? 'columns' : 'density'
@@ -86,10 +89,44 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
     };
   }, [isOpen]);
 
-  const filteredLimits = pageSizeOptions.filter((t) => t <= totalItems || t === 5);
+  const itemsCount = totalItems !== undefined ? totalItems : 9999;
+  const filteredLimits = pageSizeOptions.filter((limit, idx) => {
+    if (limit <= itemsCount) return true;
+    const prev = pageSizeOptions[idx - 1];
+    return !prev || prev < itemsCount;
+  });
+
+  const totalPages = pageSize && pageSize < 9999 && totalItems ? Math.ceil(totalItems / pageSize) : 1;
 
   return (
-    <div className="relative inline-block text-left font-sans" ref={menuRef}>
+    <div className="relative inline-flex items-center gap-1.5 text-left font-sans" ref={menuRef}>
+      {/* Controles de paginación de cabecera si hay más de 1 página */}
+      {onPageChange && totalPages > 1 && (
+        <div className="flex items-center gap-1 bg-[#1a1a1a] px-2 py-1 rounded border border-white/10 text-white select-none">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
+            className="p-0.5 rounded hover:bg-white/20 text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center transition-colors"
+            title="Previous Page"
+          >
+            <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+          </button>
+          <span className="text-[10px] font-mono font-bold text-zinc-300 px-1">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+            className="p-0.5 rounded hover:bg-white/20 text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center transition-colors"
+            title="Next Page"
+          >
+            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          </button>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -100,7 +137,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white border border-[#e8e2d8] rounded-lg shadow-2xl z-50 text-left font-sans text-xs animate-fade-in overflow-hidden">
+        <div className="absolute right-0 top-full mt-1.5 w-72 bg-white border border-[#e8e2d8] rounded-lg shadow-2xl z-50 text-left font-sans text-xs animate-fade-in overflow-hidden">
           {/* Tabs de Selección Superior */}
           <div className="flex border-b border-[#e8e2d8] bg-[#f8f3eb]">
             {hasActionsTab && (
@@ -297,7 +334,7 @@ export const TableOptionsMenu: React.FC<TableOptionsMenuProps> = ({
               )}
 
               {/* Cantidad de Registros por Página */}
-              {onChangePageSize && totalItems > 5 && (
+              {onChangePageSize && (
                 <div>
                   <div className="text-[10px] font-bold text-secondary uppercase tracking-wider mb-2">
                     Visible Rows per Page
@@ -350,3 +387,71 @@ export const NoColumnsEmptyState: React.FC = () => (
     </p>
   </div>
 );
+
+export interface TablePaginationFooterProps {
+  currentPage: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}
+
+export const TablePaginationFooter: React.FC<TablePaginationFooterProps> = ({
+  currentPage,
+  totalItems,
+  pageSize,
+  onPageChange,
+}) => {
+  if (!pageSize || pageSize >= 9999 || totalItems <= pageSize) {
+    return null;
+  }
+
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#f8f3eb]/60 border-t border-[#e8e2d8] text-xs font-sans select-none">
+      <div className="text-[#5f5e5e] font-semibold text-[11px]">
+        Showing <span className="font-bold text-[#1d1c17]">{startItem}</span> - <span className="font-bold text-[#1d1c17]">{endItem}</span> of <span className="font-bold text-[#1d1c17]">{totalItems}</span> items
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="px-2.5 py-1 bg-white border border-[#e8e2d8] rounded text-[#1d1c17] font-bold hover:bg-[#fef9f1] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-sm">chevron_left</span>
+          <span>Previous</span>
+        </button>
+
+        <span className="px-2 text-[11px] font-mono font-bold text-[#5f5e5e]">
+          Page {currentPage} of {totalPages}
+        </span>
+
+        <button
+          type="button"
+          disabled={currentPage >= totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="px-2.5 py-1 bg-white border border-[#e8e2d8] rounded text-[#1d1c17] font-bold hover:bg-[#fef9f1] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <span>Next</span>
+          <span className="material-symbols-outlined text-sm">chevron_right</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export const getDensityPadding = (rowDensity: 'compact' | 'comfortable' | 'spacious' = 'comfortable'): string => {
+  switch (rowDensity) {
+    case 'compact':
+      return 'py-2 px-3';
+    case 'spacious':
+      return 'py-5 px-6';
+    case 'comfortable':
+    default:
+      return 'py-3.5 px-4';
+  }
+};

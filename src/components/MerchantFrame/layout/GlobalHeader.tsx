@@ -64,6 +64,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     { id: 'movements', name: 'Inventory Movements Log', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
     { id: 'inventory-journal-lines', name: 'Inventory Journal Lines', categoryId: 'inventory', categoryName: 'Products & Inventory System' },
     { id: 'kitchen-stations', name: 'Kitchen Stations routing', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
+    { id: 'kitchen-display-devices', name: 'KDS Display Devices Inventory', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'floor-plans', name: 'Floor Plans Workspace', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'table-zones', name: 'Floor Zones', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
     { id: 'tables', name: 'Dining Tables', categoryId: 'restaurant-operations', categoryName: 'Restaurant Operations' },
@@ -237,6 +238,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     else if (activeTab === 'suppliers') activeFeatureName = 'Master Suppliers';
     else if (activeTab === 'kds-dashboard' || activeTab === 'kitchen-kds-hub') activeFeatureName = 'KDS Command Hub';
     else if (activeTab === 'kitchen-stations') activeFeatureName = 'Kitchen Stations Directory';
+    else if (activeTab === 'kitchen-display-devices') activeFeatureName = 'KDS Display Devices Inventory';
     else activeFeatureName = activeTab.replace(/-/g, ' ').toUpperCase();
   }
 

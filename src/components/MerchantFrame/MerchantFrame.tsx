@@ -91,6 +91,7 @@ import { RawMaterialCategoriesView } from './views/products-inventory/category/R
 import { RecipesView } from './views/products-inventory/recipes/RecipesView';
 import { KitchenStationsView } from './views/restaurant-operations/kitchen-stations/KitchenStationsView';
 import { KitchenKDSHubView } from './views/restaurant-operations/kitchen-stations/KitchenKDSHubView';
+import { KitchenDisplayDevicesView } from './views/restaurant-operations/kitchen-stations/KitchenDisplayDevicesView';
 import { clearAuthSession } from '../../lib/auth-storage';
 import { getCurrentMerchantId } from '../../api/users';
 
@@ -930,6 +931,10 @@ export const MerchantFrame: React.FC = () => {
 
     if (activeTab === 'kitchen-stations') {
       return <KitchenStationsView onNavigate={(view) => setActiveTab(view)} />;
+    }
+
+    if (activeTab === 'kitchen-display-devices') {
+      return <KitchenDisplayDevicesView onNavigate={(view) => setActiveTab(view)} />;
     }
 
 

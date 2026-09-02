@@ -4,7 +4,7 @@ import { getAccessToken, clearAuthSession } from '../../../../../lib/auth-storag
 import { KitchenQuickLinks } from './KitchenQuickLinks';
 import { AppModal } from '../../../shared/AppModal';
 import { HeaderQuickTabs } from '../../../../shared/HeaderQuickTabs';
-import { TableOptionsMenu, NoColumnsEmptyState } from '../../../../shared/TableOptionsMenu';
+import { TableOptionsMenu, NoColumnsEmptyState, TablePaginationFooter, getDensityPadding } from '../../../../shared/TableOptionsMenu';
 import { NavHubBar } from '../../../../shared/NavHubBar';
 
 export type KitchenStationType = 'HOT' | 'COLD' | 'BAR' | 'DESSERT' | 'PREP' | 'PACKING' | 'EXPO';
@@ -145,6 +145,11 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
   });
   const [rowDensity, setRowDensity] = useState<'compact' | 'comfortable' | 'spacious'>('comfortable');
   const [pageSize, setPageSize] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, stationTypeFilter, displayModeFilter, statusFilter, pageSize]);
 
   // Estados de Drawer / Modal de Edición y Creación
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -226,6 +231,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
       }
     } catch (err) {
       console.warn('API error fetching kitchen stations:', err);
+      setError('Failed to fetch kitchen stations from backend API.');
       setStations([]);
     } finally {
       setIsLoading(false);
@@ -831,7 +837,7 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
           })}
         </div>
       ) : (
-        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm overflow-hidden">
+        <div className="bg-white border border-[#e8e2d8] rounded shadow-sm relative">
           <HeaderQuickTabs
             title="KITCHEN STATIONS & PREP ROUTING DIRECTORY"
             badgeCount={filteredStations.length <= pageSize ? `${filteredStations.length} station${filteredStations.length === 1 ? '' : 's'}` : `${Math.min(filteredStations.length, pageSize)} / ${filteredStations.length} stations`}
@@ -882,165 +888,180 @@ export const KitchenStationsView: React.FC<KitchenStationsViewProps> = ({ onNavi
                 totalItems={filteredStations.length}
                 pageSize={pageSize}
                 onChangePageSize={setPageSize}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
               />
             }
           />
           {!Object.values(visibleColumns).some(Boolean) ? (
             <NoColumnsEmptyState />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-sans">
-                <thead>
-                  <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase text-[11px] tracking-wider font-bold border-b border-[#e8e2d8]">
-                    {visibleColumns.refDate && <th className="py-3.5 px-4 text-[#5f5e5e]">Station Ref & Date</th>}
-                    {visibleColumns.nameSequence && <th className="py-3.5 px-4 text-[#5f5e5e]">Station Name & Sequence</th>}
-                    {visibleColumns.stationType && <th className="py-3.5 px-4 text-[#5f5e5e]">Station Type Role</th>}
-                    {visibleColumns.displayMode && <th className="py-3.5 px-4 text-[#5f5e5e]">KDS Display Mode</th>}
-                    {visibleColumns.printer && <th className="py-3.5 px-4 text-[#5f5e5e]">Hardware Printer Binding</th>}
-                    {visibleColumns.activeRouting && <th className="py-3.5 px-4 text-center text-[#5f5e5e]">Active Routing</th>}
-                    {visibleColumns.status && <th className="py-3.5 px-4 text-center text-[#5f5e5e]">Lifecycle Status</th>}
-                    {visibleColumns.actions && <th className="py-3.5 px-4 text-right text-[#5f5e5e]">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#e8e2d8]">
-                  {(pageSize >= 9999 ? filteredStations : filteredStations.slice(0, pageSize)).map((station) => {
-                    const isInactive = !station.is_active;
-                    const isDeleted = station.status === 'deleted';
-                    const densityPadding = rowDensity === 'compact' ? 'py-2 px-3' : rowDensity === 'spacious' ? 'py-5 px-6' : 'py-3.5 px-4';
-                    return (
-                      <tr
-                        key={station.id}
-                        className={`transition-colors ${
-                          isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
-                        }`}
-                      >
-                        {/* Reference ID & Date */}
-                        {visibleColumns.refDate && (
-                          <td className={`${densityPadding} whitespace-nowrap`}>
-                            <div className="font-bold text-[#1d1c17]">#KST-{station.id}</div>
-                            <div className="text-[10px] text-[#5f5e5e]">
-                              {new Date(station.created_at).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                              })}
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Station Name & Order Badge */}
-                        {visibleColumns.nameSequence && (
-                          <td className={densityPadding}>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`font-bold text-sm text-[#1d1c17] ${
-                                  isInactive ? 'line-through' : ''
-                                }`}
-                              >
-                                {station.name}
-                              </span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] border border-[#e8e2d8]">
-                                Order #{station.display_order}
-                              </span>
-                            </div>
-                          </td>
-                        )}
-
-                        {/* Station Type Badge */}
-                        {visibleColumns.stationType && (
-                          <td className={`${densityPadding} whitespace-nowrap`}>
-                            {getStationTypeBadge(station.station_type)}
-                          </td>
-                        )}
-
-                        {/* Display Mode Pill */}
-                        {visibleColumns.displayMode && (
-                          <td className={`${densityPadding} whitespace-nowrap`}>
-                            {getDisplayModePill(station.display_mode)}
-                          </td>
-                        )}
-
-                        {/* Printer Hardware Link */}
-                        {visibleColumns.printer && (
-                          <td className={`${densityPadding} whitespace-nowrap`}>
-                            {station.printer_name ? (
-                              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700">
-                                <span className="material-symbols-outlined text-[16px] text-zinc-500">
-                                  print
-                                </span>
-                                {station.printer_name}
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-sans">
+                  <thead>
+                    <tr className="bg-[#ece8e0] text-[#5f5e5e] uppercase text-[11px] tracking-wider font-bold border-b border-[#e8e2d8]">
+                      {visibleColumns.refDate && <th className="py-3.5 px-4 text-[#5f5e5e]">Station Ref & Date</th>}
+                      {visibleColumns.nameSequence && <th className="py-3.5 px-4 text-[#5f5e5e]">Station Name & Sequence</th>}
+                      {visibleColumns.stationType && <th className="py-3.5 px-4 text-[#5f5e5e]">Station Type Role</th>}
+                      {visibleColumns.displayMode && <th className="py-3.5 px-4 text-[#5f5e5e]">KDS Display Mode</th>}
+                      {visibleColumns.printer && <th className="py-3.5 px-4 text-[#5f5e5e]">Hardware Printer Binding</th>}
+                      {visibleColumns.activeRouting && <th className="py-3.5 px-4 text-center text-[#5f5e5e]">Active Routing</th>}
+                      {visibleColumns.status && <th className="py-3.5 px-4 text-center text-[#5f5e5e]">Lifecycle Status</th>}
+                      {visibleColumns.actions && <th className="py-3.5 px-4 text-right text-[#5f5e5e]">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e8e2d8]">
+                    {(pageSize >= 9999
+                      ? filteredStations
+                      : filteredStations.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize)
+                    ).map((station) => {
+                      const isInactive = !station.is_active;
+                      const isDeleted = station.status === 'deleted';
+                      const densityPadding = getDensityPadding(rowDensity);
+                      return (
+                        <tr
+                          key={station.id}
+                          className={`transition-colors ${
+                            isInactive ? 'bg-[#f8f3eb]/40 opacity-75' : 'hover:bg-[#f8f3eb]'
+                          }`}
+                        >
+                          {/* Reference ID & Date */}
+                          {visibleColumns.refDate && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              <div className="font-bold text-[#1d1c17]">#KST-{station.id}</div>
+                              <div className="text-[10px] text-[#5f5e5e]">
+                                {new Date(station.created_at).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
                               </div>
-                            ) : (
-                              <span className="text-xs italic text-zinc-400">No Printer Assigned</span>
-                            )}
-                          </td>
-                        )}
+                            </td>
+                          )}
 
-                        {/* Active Status Switch */}
-                        {visibleColumns.activeRouting && (
-                          <td className={`${densityPadding} text-center whitespace-nowrap`}>
-                            <label className="relative inline-flex items-center cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                disabled={isDeleted}
-                                checked={station.is_active}
-                                onChange={() => handleToggleActive(station)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ae001a] disabled:opacity-40 disabled:cursor-not-allowed" />
-                            </label>
-                          </td>
-                        )}
+                          {/* Station Name & Order Badge */}
+                          {visibleColumns.nameSequence && (
+                            <td className={densityPadding}>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`font-bold text-sm text-[#1d1c17] ${
+                                    isInactive ? 'line-through' : ''
+                                  }`}
+                                >
+                                  {station.name}
+                                </span>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#f2ede5] text-[#5f5e5e] border border-[#e8e2d8]">
+                                  Order #{station.display_order}
+                                </span>
+                              </div>
+                            </td>
+                          )}
 
-                        {/* Record Lifecycle Badge */}
-                        {visibleColumns.status && (
-                          <td className={`${densityPadding} text-center whitespace-nowrap`}>
-                            {isDeleted ? (
-                              <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-zinc-200 text-zinc-600">
-                                DELETED
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                ACTIVE
-                              </span>
-                            )}
-                          </td>
-                        )}
+                          {/* Station Type Badge */}
+                          {visibleColumns.stationType && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              {getStationTypeBadge(station.station_type)}
+                            </td>
+                          )}
 
-                        {/* Actions */}
-                        {visibleColumns.actions && (
-                          <td className={`${densityPadding} text-right whitespace-nowrap`}>
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditDrawer(station)}
-                                disabled={isDeleted}
-                                className="p-1.5 text-zinc-600 hover:text-[#ae001a] hover:bg-[#fef9f1] rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Edit station"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setStationToDelete(station);
-                                  setDeleteModalOpen(true);
-                                }}
-                                disabled={isDeleted}
-                                className="p-1.5 text-zinc-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Soft delete station"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          {/* Display Mode Pill */}
+                          {visibleColumns.displayMode && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              {getDisplayModePill(station.display_mode)}
+                            </td>
+                          )}
+
+                          {/* Printer Hardware Link */}
+                          {visibleColumns.printer && (
+                            <td className={`${densityPadding} whitespace-nowrap`}>
+                              {station.printer_name ? (
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700">
+                                  <span className="material-symbols-outlined text-[16px] text-zinc-500">
+                                    print
+                                  </span>
+                                  {station.printer_name}
+                                </div>
+                              ) : (
+                                <span className="text-xs italic text-zinc-400">No Printer Assigned</span>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Active Status Switch */}
+                          {visibleColumns.activeRouting && (
+                            <td className={`${densityPadding} text-center whitespace-nowrap`}>
+                              <label className="relative inline-flex items-center cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  disabled={isDeleted}
+                                  checked={station.is_active}
+                                  onChange={() => handleToggleActive(station)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ae001a] disabled:opacity-40 disabled:cursor-not-allowed" />
+                              </label>
+                            </td>
+                          )}
+
+                          {/* Record Lifecycle Badge */}
+                          {visibleColumns.status && (
+                            <td className={`${densityPadding} text-center whitespace-nowrap`}>
+                              {isDeleted ? (
+                                <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-zinc-200 text-zinc-600">
+                                  DELETED
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  ACTIVE
+                                </span>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Actions */}
+                          {visibleColumns.actions && (
+                            <td className={`${densityPadding} text-right whitespace-nowrap`}>
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditDrawer(station)}
+                                  disabled={isDeleted}
+                                  className="p-1.5 text-zinc-600 hover:text-[#ae001a] hover:bg-[#fef9f1] rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="Edit station"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setStationToDelete(station);
+                                    setDeleteModalOpen(true);
+                                  }}
+                                  disabled={isDeleted}
+                                  className="p-1.5 text-zinc-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="Soft delete station"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pie de paginación con controles Anterior / Siguiente */}
+              <TablePaginationFooter
+                currentPage={currentPage}
+                totalItems={filteredStations.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+              />
+            </>
           )}
         </div>
       )}
